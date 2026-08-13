@@ -4,8 +4,9 @@ Sistema mínimo para você rodar telas de propaganda em pontos comerciais e vend
 para anunciantes locais. Sem mensalidade de software: você é o dono.
 
 ## Componentes
-- **server.js** — backend (Node/Express). Guarda tudo em `data.json` e as mídias em `uploads/`.
-  Protege o painel com login por senha única (sessão via cookie).
+- **server.js** — backend (Node/Express). Guarda tudo em `data.sqlite` (SQLite, via `node:sqlite`
+  nativo do Node — sem dependência extra) e as mídias em `uploads/`. Protege o painel com login
+  por senha única (sessão via cookie).
 - **frontend/** — workspace Angular com dois apps:
   - **admin** — painel: login, cadastra telas, envia mídias, monta a programação, gera relatórios.
   - **player** — o que roda na TV/box. Toca a playlist em loop, registra cada exibição e usa
@@ -54,6 +55,8 @@ npm run start:player    # serve o app player em :4200 (rode em outro terminal/po
   No Android TV dá pra usar o app "Fully Kiosk Browser" (grátis) para abrir sozinho e em tela cheia.
 
 ## Observações
-- `data.json` é o "banco". Faça backup dele de vez em quando.
+- `data.sqlite` é o "banco". Faça backup dele de vez em quando (é um arquivo único).
+- Se você vem de uma versão antiga com `data.json`, o server migra automaticamente na primeira
+  subida com SQLite e renomeia o arquivo antigo para `data.json.migrated` (fica de backup).
 - Vídeos entram sem áudio (autoplay em kiosk exige mudo). Coloque legenda na arte se precisar.
-- Para escalar muito (centenas de telas), depois troque o `data.json` por um banco (SQLite/Postgres).
+- Requer Node 22.5+ (usa o módulo nativo `node:sqlite`). A VPS já roda Node 24.

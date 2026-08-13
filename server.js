@@ -5,10 +5,12 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { DatabaseSync } = require('node:sqlite');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DB_FILE = path.join(__dirname, 'data.sqlite');
+const LEGACY_DATA_FILE = path.join(__dirname, 'data.json');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -22,17 +24,67 @@ if (!process.env.SESSION_SECRET) {
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-function loadData() {
-  try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); }
-  catch { return { screens: [], media: [], playlists: {}, impressions: [] }; }
-}
-function saveData() { fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); }
-let db = loadData();
+// ---------- Banco (SQLite) ----------
+const dbIsNew = !fs.existsSync(DB_FILE);
+const db = new DatabaseSync(DB_FILE);
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS screens (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    location TEXT DEFAULT '',
+    createdAt INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS media (
+    id TEXT PRIMARY KEY,
+    filename TEXT NOT NULL,
+    originalName TEXT NOT NULL,
+    type TEXT NOT NULL,
+    advertiser TEXT DEFAULT '',
+    createdAt INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS playlist_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    screenId TEXT NOT NULL REFERENCES screens(id) ON DELETE CASCADE,
+    mediaId TEXT NOT NULL,
+    duration INTEGER NOT NULL DEFAULT 10,
+    startDate TEXT,
+    endDate TEXT,
+    position INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_playlist_screen ON playlist_items(screenId, position);
+  CREATE TABLE IF NOT EXISTS impressions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    screenId TEXT NOT NULL,
+    mediaId TEXT NOT NULL,
+    ts INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_impressions_ts ON impressions(ts);
+  CREATE INDEX IF NOT EXISTS idx_impressions_screen ON impressions(screenId);
+`);
 
-// Impressoes chegam a cada poucos segundos por tela. Em vez de gravar em disco
-// a cada impressao, marcamos "dirty" e gravamos em lote a cada 5s.
-let dirty = false;
-setInterval(() => { if (dirty) { saveData(); dirty = false; } }, 5000);
+// Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
+if (dbIsNew && fs.existsSync(LEGACY_DATA_FILE)) {
+  console.log('Migrando data.json para data.sqlite...');
+  const legacy = JSON.parse(fs.readFileSync(LEGACY_DATA_FILE, 'utf8'));
+  const insertScreen = db.prepare('INSERT INTO screens (id, name, location, createdAt) VALUES (?, ?, ?, ?)');
+  const insertMedia = db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)');
+  const insertItem = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
+  const insertImpression = db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)');
+
+  for (const s of legacy.screens || []) insertScreen.run(s.id, s.name, s.location || '', s.createdAt);
+  for (const m of legacy.media || []) insertMedia.run(m.id, m.filename, m.originalName, m.type, m.advertiser || '', m.createdAt);
+  for (const screenId of Object.keys(legacy.playlists || {})) {
+    (legacy.playlists[screenId] || []).forEach((item, ix) => {
+      insertItem.run(screenId, item.mediaId, Number(item.duration) || 10, item.startDate || null, item.endDate || null, ix);
+    });
+  }
+  for (const i of legacy.impressions || []) insertImpression.run(i.screenId, i.mediaId, i.ts);
+
+  fs.renameSync(LEGACY_DATA_FILE, LEGACY_DATA_FILE + '.migrated');
+  console.log('Migracao concluida:', (legacy.screens || []).length, 'telas,', (legacy.media || []).length, 'midias,', (legacy.impressions || []).length, 'impressoes.');
+}
 
 const id = () => crypto.randomBytes(6).toString('hex');
 
@@ -80,23 +132,24 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 
 // ---------- Telas ----------
-app.get('/api/screens', requireAuth, (req, res) => res.json(db.screens));
+app.get('/api/screens', requireAuth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM screens ORDER BY createdAt').all());
+});
 app.post('/api/screens', requireAuth, (req, res) => {
   const s = { id: id(), name: req.body.name || 'Tela', location: req.body.location || '', createdAt: Date.now() };
-  db.screens.push(s);
-  if (!db.playlists[s.id]) db.playlists[s.id] = [];
-  saveData();
+  db.prepare('INSERT INTO screens (id, name, location, createdAt) VALUES (?, ?, ?, ?)').run(s.id, s.name, s.location, s.createdAt);
   res.json(s);
 });
 app.delete('/api/screens/:id', requireAuth, (req, res) => {
-  db.screens = db.screens.filter(s => s.id !== req.params.id);
-  delete db.playlists[req.params.id];
-  saveData();
+  db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.id);
+  db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
 // ---------- Midias ----------
-app.get('/api/media', requireAuth, (req, res) => res.json(db.media));
+app.get('/api/media', requireAuth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM media ORDER BY createdAt').all());
+});
 app.post('/api/media', requireAuth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'arquivo obrigatorio' });
   const type = req.file.mimetype.startsWith('video') ? 'video' : 'image';
@@ -104,71 +157,85 @@ app.post('/api/media', requireAuth, upload.single('file'), (req, res) => {
     id: id(), filename: req.file.filename, originalName: req.file.originalname,
     type, advertiser: req.body.advertiser || '', createdAt: Date.now()
   };
-  db.media.push(m);
-  saveData();
+  db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(m.id, m.filename, m.originalName, m.type, m.advertiser, m.createdAt);
   res.json(m);
 });
 app.delete('/api/media/:id', requireAuth, (req, res) => {
-  const m = db.media.find(x => x.id === req.params.id);
+  const m = db.prepare('SELECT * FROM media WHERE id = ?').get(req.params.id);
   if (m) { try { fs.unlinkSync(path.join(UPLOAD_DIR, m.filename)); } catch {} }
-  db.media = db.media.filter(x => x.id !== req.params.id);
-  for (const k in db.playlists) db.playlists[k] = db.playlists[k].filter(i => i.mediaId !== req.params.id);
-  saveData();
+  db.prepare('DELETE FROM playlist_items WHERE mediaId = ?').run(req.params.id);
+  db.prepare('DELETE FROM media WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
 // ---------- Programacao (playlist por tela) ----------
-app.get('/api/playlists/:screenId', requireAuth, (req, res) => res.json(db.playlists[req.params.screenId] || []));
+app.get('/api/playlists/:screenId', requireAuth, (req, res) => {
+  const items = db.prepare('SELECT mediaId, duration, startDate, endDate FROM playlist_items WHERE screenId = ? ORDER BY position').all(req.params.screenId);
+  res.json(items);
+});
 app.post('/api/playlists/:screenId', requireAuth, (req, res) => {
   const { mediaId, duration, startDate, endDate } = req.body;
-  if (!db.playlists[req.params.screenId]) db.playlists[req.params.screenId] = [];
-  db.playlists[req.params.screenId].push({
-    mediaId, duration: Number(duration) || 10,
-    startDate: startDate || null, endDate: endDate || null
-  });
-  saveData();
+  const { next } = db.prepare('SELECT COALESCE(MAX(position) + 1, 0) AS next FROM playlist_items WHERE screenId = ?').get(req.params.screenId);
+  db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(req.params.screenId, mediaId, Number(duration) || 10, startDate || null, endDate || null, next);
   res.json({ ok: true });
 });
 app.put('/api/playlists/:screenId', requireAuth, (req, res) => {
-  db.playlists[req.params.screenId] = req.body.items || [];
-  saveData();
+  db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.screenId);
+  const insert = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
+  (req.body.items || []).forEach((item, ix) => {
+    insert.run(req.params.screenId, item.mediaId, Number(item.duration) || 10, item.startDate || null, item.endDate || null, ix);
+  });
   res.json({ ok: true });
 });
 
 // ---------- Feed que o PLAYER consome (ja filtrado por datas de campanha) ----------
 app.get('/api/play/:screenId', (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
-  const items = (db.playlists[req.params.screenId] || []).filter(i => {
-    if (i.startDate && today < i.startDate) return false;
-    if (i.endDate && today > i.endDate) return false;
+  const rows = db.prepare(`
+    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.advertiser
+    FROM playlist_items p JOIN media m ON m.id = p.mediaId
+    WHERE p.screenId = ?
+    ORDER BY p.position
+  `).all(req.params.screenId);
+  const items = rows.filter(r => {
+    if (r.startDate && today < r.startDate) return false;
+    if (r.endDate && today > r.endDate) return false;
     return true;
-  }).map(i => {
-    const m = db.media.find(x => x.id === i.mediaId);
-    if (!m) return null;
-    return { mediaId: m.id, type: m.type, url: '/uploads/' + m.filename, duration: i.duration, advertiser: m.advertiser };
-  }).filter(Boolean);
+  }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser }));
   res.json({ screenId: req.params.screenId, items });
 });
 
 // ---------- Impressoes (prova de exibicao pro anunciante) ----------
 app.post('/api/impression', (req, res) => {
   const { screenId, mediaId } = req.body || {};
-  if (screenId && mediaId) { db.impressions.push({ screenId, mediaId, ts: Date.now() }); dirty = true; }
+  if (screenId && mediaId) {
+    db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)').run(screenId, mediaId, Date.now());
+  }
   res.json({ ok: true });
 });
 app.get('/api/report', requireAuth, (req, res) => {
   const { from, to, screenId } = req.query;
   const fromTs = from ? new Date(from).getTime() : 0;
   const toTs = to ? new Date(to).getTime() + 86400000 : Date.now();
-  let imps = db.impressions.filter(i => i.ts >= fromTs && i.ts <= toTs);
-  if (screenId) imps = imps.filter(i => i.screenId === screenId);
+  const rows = screenId
+    ? db.prepare(`
+        SELECT COALESCE(NULLIF(m.advertiser, ''), m.originalName, 'desconhecido') AS advertiser, COUNT(*) AS n
+        FROM impressions i LEFT JOIN media m ON m.id = i.mediaId
+        WHERE i.ts >= ? AND i.ts <= ? AND i.screenId = ?
+        GROUP BY advertiser
+      `).all(fromTs, toTs, screenId)
+    : db.prepare(`
+        SELECT COALESCE(NULLIF(m.advertiser, ''), m.originalName, 'desconhecido') AS advertiser, COUNT(*) AS n
+        FROM impressions i LEFT JOIN media m ON m.id = i.mediaId
+        WHERE i.ts >= ? AND i.ts <= ?
+        GROUP BY advertiser
+      `).all(fromTs, toTs);
   const byAdv = {};
-  for (const i of imps) {
-    const m = db.media.find(x => x.id === i.mediaId);
-    const adv = m ? (m.advertiser || m.originalName) : 'desconhecido';
-    byAdv[adv] = (byAdv[adv] || 0) + 1;
-  }
-  res.json({ total: imps.length, byAdvertiser: byAdv });
+  let total = 0;
+  for (const r of rows) { byAdv[r.advertiser] = r.n; total += r.n; }
+  res.json({ total, byAdvertiser: byAdv });
 });
 
 app.listen(PORT, () => {

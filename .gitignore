@@ -1,5 +1,8 @@
 node_modules/
 data.json
+data.json.migrated
+data.sqlite
+data.sqlite-*
 uploads/
 frontend/dist/
 frontend/.angular/
