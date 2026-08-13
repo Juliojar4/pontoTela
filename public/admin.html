@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CMS · Painel</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --line:#262b36; --txt:#e6e8ec;
+    --muted:#8b93a1; --accent:#4f8cff; --danger:#e5484d; --ok:#2fbf71;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt)}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px}
+  header h1{font-size:17px;margin:0;font-weight:650}
+  header .dot{width:9px;height:9px;border-radius:50%;background:var(--ok)}
+  nav{display:flex;gap:4px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  nav button{background:transparent;border:0;color:var(--muted);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:14px}
+  nav button.active{background:var(--card);color:var(--txt)}
+  main{max-width:940px;margin:0 auto;padding:22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  h2{font-size:15px;margin:0 0 14px}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);
+    padding:9px 11px;border-radius:8px;font-size:14px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:140px}
+  button.primary{background:var(--accent);color:#fff;border:0;padding:10px 16px;border-radius:8px;
+    cursor:pointer;font-size:14px;margin-top:14px}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);padding:6px 11px;
+    border-radius:7px;cursor:pointer;font-size:13px}
+  button.del{background:transparent;border:0;color:var(--danger);cursor:pointer;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-weight:500;font-size:12px}
+  .tag{font-size:11px;background:var(--bg);border:1px solid var(--line);padding:2px 7px;border-radius:20px;color:var(--muted)}
+  .thumb{width:52px;height:34px;object-fit:cover;border-radius:5px;background:#000}
+  a.link{color:var(--accent);text-decoration:none;font-size:13px}
+  .muted{color:var(--muted);font-size:13px}
+  .empty{color:var(--muted);font-size:14px;padding:14px 4px}
+  .big{font-size:26px;font-weight:650}
+</style>
+</head>
+<body>
+<header><span class="dot"></span><h1>CMS de Mídia Indoor</h1><span class="muted" id="stat"></span></header>
+<nav>
+  <button data-tab="telas" class="active">Telas</button>
+  <button data-tab="midias">Mídias</button>
+  <button data-tab="prog">Programação</button>
+  <button data-tab="rel">Relatórios</button>
+</nav>
+<main>
+  <section id="tab-telas"></section>
+  <section id="tab-midias" hidden></section>
+  <section id="tab-prog" hidden></section>
+  <section id="tab-rel" hidden></section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (u, o) => fetch(u, o).then(r => r.json());
+let screens = [], media = [];
+
+// ---- navegacao ----
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  ['telas','midias','prog','rel'].forEach(t => $('#tab-'+t).hidden = (t !== b.dataset.tab));
+  render(b.dataset.tab);
+});
+
+async function refresh(){
+  [screens, media] = await Promise.all([api('/api/screens'), api('/api/media')]);
+  $('#stat').textContent = screens.length + ' tela(s) · ' + media.length + ' mídia(s)';
+}
+
+function render(tab){
+  if (tab === 'telas') renderTelas();
+  if (tab === 'midias') renderMidias();
+  if (tab === 'prog') renderProg();
+  if (tab === 'rel') renderRel();
+}
+
+// ---------- TELAS ----------
+function renderTelas(){
+  $('#tab-telas').innerHTML = `
+    <div class="card">
+      <h2>Nova tela (ponto)</h2>
+      <div class="row">
+        <div><label>Nome</label><input id="s-name" placeholder="Academia Fit Center"></div>
+        <div><label>Local</label><input id="s-loc" placeholder="Recepção"></div>
+      </div>
+      <button class="primary" onclick="addScreen()">Adicionar tela</button>
+    </div>
+    <div class="card">
+      <h2>Telas cadastradas</h2>
+      ${screens.length ? `<table><tr><th>Nome</th><th>Local</th><th>Link do player</th><th></th></tr>
+      ${screens.map(s => `<tr>
+        <td>${esc(s.name)}</td><td class="muted">${esc(s.location)||'—'}</td>
+        <td><a class="link" href="/player.html?screen=${s.id}" target="_blank">abrir player ↗</a></td>
+        <td><button class="del" onclick="delScreen('${s.id}')">excluir</button></td>
+      </tr>`).join('')}</table>` : '<div class="empty">Nenhuma tela ainda. Cada tela vira uma URL que você abre na TV/box.</div>'}
+    </div>`;
+}
+async function addScreen(){
+  const name = $('#s-name').value.trim(); if(!name) return alert('Dê um nome à tela');
+  await api('/api/screens', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name, location: $('#s-loc').value.trim() }) });
+  await refresh(); renderTelas();
+}
+async function delScreen(id){
+  if(!confirm('Excluir esta tela?')) return;
+  await fetch('/api/screens/'+id, { method:'DELETE' }); await refresh(); renderTelas();
+}
+
+// ---------- MIDIAS ----------
+function renderMidias(){
+  $('#tab-midias').innerHTML = `
+    <div class="card">
+      <h2>Enviar mídia</h2>
+      <div class="row">
+        <div><label>Arquivo (imagem ou vídeo)</label><input type="file" id="m-file" accept="image/*,video/*"></div>
+        <div><label>Anunciante</label><input id="m-adv" placeholder="Pizzaria do João"></div>
+      </div>
+      <button class="primary" onclick="upMedia()">Enviar</button>
+    </div>
+    <div class="card">
+      <h2>Biblioteca</h2>
+      ${media.length ? `<table><tr><th></th><th>Anunciante</th><th>Arquivo</th><th>Tipo</th><th></th></tr>
+      ${media.map(m => `<tr>
+        <td>${m.type==='image' ? `<img class="thumb" src="/uploads/${m.filename}">` : '🎬'}</td>
+        <td>${esc(m.advertiser)||'<span class="muted">—</span>'}</td>
+        <td class="muted">${esc(m.originalName)}</td>
+        <td><span class="tag">${m.type}</span></td>
+        <td><button class="del" onclick="delMedia('${m.id}')">excluir</button></td>
+      </tr>`).join('')}</table>` : '<div class="empty">Nenhuma mídia enviada.</div>'}
+    </div>`;
+}
+async function upMedia(){
+  const f = $('#m-file').files[0]; if(!f) return alert('Escolha um arquivo');
+  const fd = new FormData(); fd.append('file', f); fd.append('advertiser', $('#m-adv').value.trim());
+  const btn = event.target; btn.textContent = 'Enviando…'; btn.disabled = true;
+  await fetch('/api/media', { method:'POST', body: fd });
+  await refresh(); renderMidias();
+}
+async function delMedia(id){
+  if(!confirm('Excluir esta mídia?')) return;
+  await fetch('/api/media/'+id, { method:'DELETE' }); await refresh(); renderMidias();
+}
+
+// ---------- PROGRAMACAO ----------
+let progScreen = null;
+async function renderProg(){
+  if(!screens.length){ $('#tab-prog').innerHTML = '<div class="card"><div class="empty">Cadastre uma tela primeiro.</div></div>'; return; }
+  if(!progScreen || !screens.find(s=>s.id===progScreen)) progScreen = screens[0].id;
+  const list = await api('/api/playlists/'+progScreen);
+  $('#tab-prog').innerHTML = `
+    <div class="card">
+      <h2>Programação da tela</h2>
+      <label>Tela</label>
+      <select id="p-screen" onchange="progScreen=this.value;renderProg()">
+        ${screens.map(s=>`<option value="${s.id}" ${s.id===progScreen?'selected':''}>${esc(s.name)}</option>`).join('')}
+      </select>
+      <div class="row" style="margin-top:12px">
+        <div><label>Mídia</label><select id="p-media">${media.map(m=>`<option value="${m.id}">${esc(m.advertiser||m.originalName)}</option>`).join('')}</select></div>
+        <div><label>Duração (s)</label><input id="p-dur" type="number" value="10"></div>
+        <div><label>Início (opcional)</label><input id="p-start" type="date"></div>
+        <div><label>Fim (opcional)</label><input id="p-end" type="date"></div>
+      </div>
+      <button class="primary" onclick="addToPlaylist()">Adicionar à programação</button>
+    </div>
+    <div class="card">
+      <h2>No ar nesta tela</h2>
+      ${list.length ? `<table><tr><th>#</th><th>Anunciante</th><th>Duração</th><th>Campanha</th><th></th></tr>
+      ${list.map((i,ix)=>{ const m=media.find(x=>x.id===i.mediaId)||{}; return `<tr>
+        <td class="muted">${ix+1}</td>
+        <td>${esc(m.advertiser||m.originalName||'?')}</td>
+        <td>${m.type==='video'?'<span class="muted">vídeo</span>':i.duration+'s'}</td>
+        <td class="muted">${i.startDate||'—'} → ${i.endDate||'—'}</td>
+        <td>
+          <button class="ghost" onclick="move(${ix},-1)">↑</button>
+          <button class="ghost" onclick="move(${ix},1)">↓</button>
+          <button class="del" onclick="removeItem(${ix})">remover</button>
+        </td>
+      </tr>`; }).join('')}</table>
+      <p class="muted" style="margin-top:12px">Loop total: ${loopSeconds(list)}s por volta.</p>` : '<div class="empty">Nada programado. A tela mostra "Sem conteúdo".</div>'}
+    </div>`;
+  window._plist = list;
+}
+function loopSeconds(list){ return list.reduce((a,i)=>{ const m=media.find(x=>x.id===i.mediaId); return a + (m&&m.type==='video'?15:(i.duration||10)); },0); }
+async function addToPlaylist(){
+  const mediaId = $('#p-media').value; if(!mediaId) return alert('Envie uma mídia primeiro');
+  await api('/api/playlists/'+progScreen, { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ mediaId, duration: $('#p-dur').value, startDate: $('#p-start').value||null, endDate: $('#p-end').value||null }) });
+  renderProg();
+}
+async function save(list){ await fetch('/api/playlists/'+progScreen, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ items:list }) }); }
+async function move(ix,dir){ const l=window._plist; const j=ix+dir; if(j<0||j>=l.length) return; [l[ix],l[j]]=[l[j],l[ix]]; await save(l); renderProg(); }
+async function removeItem(ix){ const l=window._plist; l.splice(ix,1); await save(l); renderProg(); }
+
+// ---------- RELATORIOS ----------
+async function renderRel(){
+  $('#tab-rel').innerHTML = `
+    <div class="card">
+      <h2>Relatório de exibições</h2>
+      <div class="row">
+        <div><label>De</label><input id="r-from" type="date"></div>
+        <div><label>Até</label><input id="r-to" type="date"></div>
+        <div><label>Tela</label><select id="r-screen"><option value="">Todas</option>${screens.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
+      </div>
+      <button class="primary" onclick="runReport()">Gerar</button>
+      <div id="r-out" style="margin-top:16px"></div>
+    </div>`;
+}
+async function runReport(){
+  const q = new URLSearchParams();
+  if($('#r-from').value) q.set('from', $('#r-from').value);
+  if($('#r-to').value) q.set('to', $('#r-to').value);
+  if($('#r-screen').value) q.set('screenId', $('#r-screen').value);
+  const d = await api('/api/report?'+q.toString());
+  const rows = Object.entries(d.byAdvertiser).sort((a,b)=>b[1]-a[1]);
+  $('#r-out').innerHTML = `
+    <div class="big">${d.total.toLocaleString('pt-BR')} <span class="muted" style="font-size:14px">exibições no período</span></div>
+    ${rows.length ? `<table style="margin-top:12px"><tr><th>Anunciante</th><th>Exibições</th></tr>
+    ${rows.map(([a,n])=>`<tr><td>${esc(a)}</td><td>${n.toLocaleString('pt-BR')}</td></tr>`).join('')}</table>` : '<p class="muted">Sem exibições no período.</p>'}`;
+}
+
+function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+refresh().then(()=>renderTelas());
+</script>
+</body>
+</html>
