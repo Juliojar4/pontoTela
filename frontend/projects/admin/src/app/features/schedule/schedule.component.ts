@@ -46,19 +46,40 @@ import { UiService } from '../../core/ui.service';
                 <tr>
                   <td class="muted">{{ $index + 1 }}</td>
                   <td>{{ mediaFor(item.mediaId)?.advertiser || mediaFor(item.mediaId)?.originalName || '?' }}</td>
-                  <td>
-                    @if (mediaFor(item.mediaId)?.type === 'video') {
-                      <span class="muted">vídeo</span>
-                    } @else {
-                      {{ item.duration }}s
-                    }
-                  </td>
-                  <td class="muted">{{ item.startDate || '—' }} → {{ item.endDate || '—' }}</td>
-                  <td>
-                    <button class="ghost" (click)="move($index, -1)">↑</button>
-                    <button class="ghost" (click)="move($index, 1)">↓</button>
-                    <button class="del" (click)="removeItem($index)">remover</button>
-                  </td>
+                  @if (editingIndex() === $index) {
+                    <td>
+                      @if (mediaFor(item.mediaId)?.type === 'video') {
+                        <span class="muted">vídeo</span>
+                      } @else {
+                        <input type="number" class="cell-input" [(ngModel)]="editDuration" />
+                      }
+                    </td>
+                    <td>
+                      <div class="edit-dates">
+                        <input type="date" class="cell-input" [(ngModel)]="editStartDate" />
+                        <input type="date" class="cell-input" [(ngModel)]="editEndDate" />
+                      </div>
+                    </td>
+                    <td>
+                      <button class="ghost" (click)="saveEdit($index)">salvar</button>
+                      <button class="del" (click)="cancelEdit()">cancelar</button>
+                    </td>
+                  } @else {
+                    <td>
+                      @if (mediaFor(item.mediaId)?.type === 'video') {
+                        <span class="muted">vídeo</span>
+                      } @else {
+                        {{ item.duration }}s
+                      }
+                    </td>
+                    <td class="muted">{{ item.startDate || '—' }} → {{ item.endDate || '—' }}</td>
+                    <td>
+                      <button class="ghost" (click)="startEdit($index, item)">editar</button>
+                      <button class="ghost" (click)="move($index, -1)">↑</button>
+                      <button class="ghost" (click)="move($index, 1)">↓</button>
+                      <button class="del" (click)="removeItem($index)">remover</button>
+                    </td>
+                  }
                 </tr>
               }
             </table>
@@ -70,16 +91,25 @@ import { UiService } from '../../core/ui.service';
       </div>
     }
   `,
+  styles: [`
+    .cell-input { width: auto; min-width: 80px; padding: 6px 8px; font-size: 13px; }
+    .edit-dates { display: flex; gap: 6px; flex-wrap: wrap; }
+    .edit-dates .cell-input { min-width: 130px; }
+  `],
 })
 export class ScheduleComponent implements OnInit {
   readonly screens = signal<Screen[]>([]);
   readonly media = signal<Media[]>([]);
   readonly list = signal<PlaylistItem[]>([]);
+  readonly editingIndex = signal<number | null>(null);
   screenId = '';
   mediaId = '';
   duration = 10;
   startDate = '';
   endDate = '';
+  editDuration = 10;
+  editStartDate = '';
+  editEndDate = '';
 
   constructor(
     private screensService: ScreensService,
@@ -103,6 +133,7 @@ export class ScheduleComponent implements OnInit {
   }
 
   async onScreenChange(): Promise<void> {
+    this.editingIndex.set(null);
     await this.loadList();
   }
 
@@ -126,6 +157,31 @@ export class ScheduleComponent implements OnInit {
       endDate: this.endDate || null,
     });
     this.ui.toast('Adicionado à programação.', 'success');
+    await this.loadList();
+  }
+
+  startEdit(ix: number, item: PlaylistItem): void {
+    this.editingIndex.set(ix);
+    this.editDuration = item.duration || 10;
+    this.editStartDate = item.startDate || '';
+    this.editEndDate = item.endDate || '';
+  }
+
+  cancelEdit(): void {
+    this.editingIndex.set(null);
+  }
+
+  async saveEdit(ix: number): Promise<void> {
+    const l = [...this.list()];
+    l[ix] = {
+      ...l[ix],
+      duration: Number(this.editDuration) || 10,
+      startDate: this.editStartDate || null,
+      endDate: this.editEndDate || null,
+    };
+    await this.playlistsService.save(this.screenId, l);
+    this.editingIndex.set(null);
+    this.ui.toast('Programação atualizada.', 'success');
     await this.loadList();
   }
 

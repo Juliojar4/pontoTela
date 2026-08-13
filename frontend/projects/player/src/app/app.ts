@@ -10,38 +10,54 @@ interface PlayItem {
   advertiser: string;
 }
 
+interface Layer {
+  key: number;
+  item: PlayItem;
+}
+
 const POLL_MS = 5 * 60 * 1000;
 const HEARTBEAT_MS = 25 * 1000;
+const TRANSITION_MS = 700;
 
 @Component({
   selector: 'app-root',
   imports: [],
   template: `
     <div class="stage">
-      @if (current(); as item) {
-        @if (item.type === 'video') {
-          <video [src]="item.url" autoplay muted playsinline (ended)="playNext()" (error)="onMediaError()"></video>
-        } @else {
-          <img [src]="item.url" (error)="onMediaError()" />
-        }
-      } @else {
+      @for (l of layers(); track l.key) {
+        <div class="layer" [class.active]="l.key === activeKey()">
+          @if (l.item.type === 'video') {
+            <video [src]="l.item.url" autoplay muted playsinline (ended)="onVideoEnded(l.key)" (error)="onMediaError()"></video>
+          } @else {
+            <img [src]="l.item.url" (error)="onMediaError()" />
+          }
+        </div>
+      }
+      @if (!layers().length) {
         <div class="msg">{{ message() }}</div>
       }
     </div>
   `,
   styles: [`
     :host { display: block; position: fixed; inset: 0; background: #000; overflow: hidden; }
-    .stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+    .stage { position: fixed; inset: 0; }
+    .layer {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity ${TRANSITION_MS}ms ease;
+    }
+    .layer.active { opacity: 1; }
     video, img { width: 100%; height: 100%; object-fit: contain; background: #000; }
-    .msg { color: #555; font-size: 22px; text-align: center; font-family: system-ui, sans-serif; }
+    .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #555; font-size: 22px; text-align: center; font-family: system-ui, sans-serif; }
   `],
 })
 export class App implements OnInit, OnDestroy {
-  readonly current = signal<PlayItem | null>(null);
+  readonly layers = signal<Layer[]>([]);
+  readonly activeKey = signal(-1);
   readonly message = signal('Carregando…');
 
   private items: PlayItem[] = [];
   private idx = 0;
+  private layerSeq = 0;
   private screenId = '';
   private advanceTimer?: ReturnType<typeof setTimeout>;
   private pollTimer?: ReturnType<typeof setInterval>;
@@ -124,7 +140,8 @@ export class App implements OnInit, OnDestroy {
   playNext(): void {
     clearTimeout(this.advanceTimer);
     if (!this.items.length) {
-      this.current.set(null);
+      this.layers.set([]);
+      this.activeKey.set(-1);
       this.message.set('Sem conteúdo programado');
       this.advanceTimer = setTimeout(() => this.playNext(), 5000);
       return;
@@ -132,10 +149,21 @@ export class App implements OnInit, OnDestroy {
     const item = this.items[this.idx % this.items.length];
     this.idx++;
     this.impression(item);
-    this.current.set(item);
+
+    const key = ++this.layerSeq;
+    this.layers.update((ls) => [...ls, { key, item }].slice(-2));
+    // proximo frame: dispara o fade-in da nova camada
+    requestAnimationFrame(() => requestAnimationFrame(() => this.activeKey.set(key)));
+    // depois da transicao, descarta a camada antiga (fadeu embaixo)
+    setTimeout(() => this.layers.update((ls) => ls.filter((l) => l.key === key)), TRANSITION_MS + 100);
+
     if (item.type === 'image') {
       this.advanceTimer = setTimeout(() => this.playNext(), (item.duration || 10) * 1000);
     }
+  }
+
+  onVideoEnded(key: number): void {
+    if (key === this.layerSeq) this.playNext();
   }
 
   onMediaError(): void {
