@@ -1,3 +1,8 @@
 node_modules/
 data.json
 uploads/
+frontend/dist/
+frontend/.angular/
+public/admin/
+public/player/
+.env
