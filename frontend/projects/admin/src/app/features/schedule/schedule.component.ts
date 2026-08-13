@@ -5,10 +5,11 @@ import { ScreensService } from '../../core/screens.service';
 import { MediaService } from '../../core/media.service';
 import { PlaylistsService } from '../../core/playlists.service';
 import { UiService } from '../../core/ui.service';
+import { MediaPickerComponent } from '../../shared/media-picker.component';
 
 @Component({
   selector: 'app-schedule',
-  imports: [FormsModule],
+  imports: [FormsModule, MediaPickerComponent],
   template: `
     @if (!screens().length) {
       <div class="card"><div class="empty">Cadastre uma tela primeiro.</div></div>
@@ -24,11 +25,7 @@ import { UiService } from '../../core/ui.service';
         <div class="row" style="margin-top:12px">
           <div>
             <label>Mídia</label>
-            <select [(ngModel)]="mediaId">
-              @for (m of media(); track m.id) {
-                <option [value]="m.id">{{ m.advertiser || m.originalName }}</option>
-              }
-            </select>
+            <app-media-picker [items]="media()" [value]="mediaId" (valueChange)="mediaId = $event" />
           </div>
           <div><label>Duração (s)</label><input type="number" [(ngModel)]="duration" /></div>
           <div><label>Início (opcional)</label><input type="date" [(ngModel)]="startDate" /></div>
