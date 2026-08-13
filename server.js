@@ -65,25 +65,37 @@ db.exec(`
 `);
 
 // Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
+// Se algo der errado no meio do caminho, desfaz e apaga o .sqlite pra tentar de novo do zero
+// no proximo restart do pm2, em vez de ficar com um banco pela metade.
 if (dbIsNew && fs.existsSync(LEGACY_DATA_FILE)) {
   console.log('Migrando data.json para data.sqlite...');
-  const legacy = JSON.parse(fs.readFileSync(LEGACY_DATA_FILE, 'utf8'));
-  const insertScreen = db.prepare('INSERT INTO screens (id, name, location, createdAt) VALUES (?, ?, ?, ?)');
-  const insertMedia = db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)');
-  const insertItem = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
-  const insertImpression = db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)');
+  try {
+    const legacy = JSON.parse(fs.readFileSync(LEGACY_DATA_FILE, 'utf8'));
+    db.exec('BEGIN');
+    const insertScreen = db.prepare('INSERT INTO screens (id, name, location, createdAt) VALUES (?, ?, ?, ?)');
+    const insertMedia = db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)');
+    const insertItem = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
+    const insertImpression = db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)');
 
-  for (const s of legacy.screens || []) insertScreen.run(s.id, s.name, s.location || '', s.createdAt);
-  for (const m of legacy.media || []) insertMedia.run(m.id, m.filename, m.originalName, m.type, m.advertiser || '', m.createdAt);
-  for (const screenId of Object.keys(legacy.playlists || {})) {
-    (legacy.playlists[screenId] || []).forEach((item, ix) => {
-      insertItem.run(screenId, item.mediaId, Number(item.duration) || 10, item.startDate || null, item.endDate || null, ix);
-    });
+    for (const s of legacy.screens || []) insertScreen.run(s.id, s.name, s.location || '', s.createdAt);
+    for (const m of legacy.media || []) insertMedia.run(m.id, m.filename, m.originalName, m.type, m.advertiser || '', m.createdAt);
+    for (const screenId of Object.keys(legacy.playlists || {})) {
+      (legacy.playlists[screenId] || []).forEach((item, ix) => {
+        insertItem.run(screenId, item.mediaId, Number(item.duration) || 10, item.startDate || null, item.endDate || null, ix);
+      });
+    }
+    for (const i of legacy.impressions || []) insertImpression.run(i.screenId, i.mediaId, i.ts);
+    db.exec('COMMIT');
+
+    fs.renameSync(LEGACY_DATA_FILE, LEGACY_DATA_FILE + '.migrated');
+    console.log('Migracao concluida:', (legacy.screens || []).length, 'telas,', (legacy.media || []).length, 'midias,', (legacy.impressions || []).length, 'impressoes.');
+  } catch (err) {
+    console.error('Falha na migracao de data.json, desfazendo para tentar de novo no proximo restart:', err);
+    try { db.exec('ROLLBACK'); } catch {}
+    db.close();
+    for (const f of [DB_FILE, DB_FILE + '-wal', DB_FILE + '-shm']) { try { fs.unlinkSync(f); } catch {} }
+    throw err;
   }
-  for (const i of legacy.impressions || []) insertImpression.run(i.screenId, i.mediaId, i.ts);
-
-  fs.renameSync(LEGACY_DATA_FILE, LEGACY_DATA_FILE + '.migrated');
-  console.log('Migracao concluida:', (legacy.screens || []).length, 'telas,', (legacy.media || []).length, 'midias,', (legacy.impressions || []).length, 'impressoes.');
 }
 
 const id = () => crypto.randomBytes(6).toString('hex');
