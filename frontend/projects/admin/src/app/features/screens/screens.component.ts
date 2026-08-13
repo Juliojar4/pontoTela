@@ -35,7 +35,12 @@ const REFRESH_MS = 20 * 1000;
                 <td>{{ s.name }}</td>
                 <td class="muted">{{ s.location || '—' }}</td>
                 <td><a class="link" [href]="'/player/?screen=' + s.id" target="_blank">abrir player ↗</a></td>
-                <td><button class="del" (click)="remove(s.id)">excluir</button></td>
+                <td>
+                  <button class="ghost" [disabled]="reloading().has(s.id)" (click)="reload(s.id)">
+                    {{ reloading().has(s.id) ? 'enviado ✓' : 'recarregar' }}
+                  </button>
+                  <button class="del" (click)="remove(s.id)">excluir</button>
+                </td>
               </tr>
             }
           </table>
@@ -54,6 +59,7 @@ const REFRESH_MS = 20 * 1000;
 })
 export class ScreensComponent implements OnInit, OnDestroy {
   readonly screens = signal<Screen[]>([]);
+  readonly reloading = signal<Set<string>>(new Set());
   name = '';
   location = '';
   private refreshTimer?: ReturnType<typeof setInterval>;
@@ -101,5 +107,14 @@ export class ScreensComponent implements OnInit, OnDestroy {
     await this.screensService.remove(id);
     this.ui.toast('Tela excluída.', 'success');
     await this.refresh();
+  }
+
+  async reload(id: string): Promise<void> {
+    await this.screensService.reload(id);
+    this.reloading.update((s) => new Set(s).add(id));
+    this.ui.toast('Comando de recarregar enviado — a tela atualiza em até 25s.', 'success');
+    setTimeout(() => {
+      this.reloading.update((s) => { const next = new Set(s); next.delete(id); return next; });
+    }, 3000);
   }
 }

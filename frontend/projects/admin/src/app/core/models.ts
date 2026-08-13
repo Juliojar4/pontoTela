@@ -4,6 +4,7 @@ export interface Screen {
   location: string;
   createdAt: number;
   lastSeen: number | null;
+  reloadAt: number | null;
 }
 
 export interface Media {

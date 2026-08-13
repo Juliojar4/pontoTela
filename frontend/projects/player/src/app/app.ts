@@ -59,6 +59,7 @@ export class App implements OnInit, OnDestroy {
   private idx = 0;
   private layerSeq = 0;
   private screenId = '';
+  private readonly bootTime = Date.now();
   private advanceTimer?: ReturnType<typeof setTimeout>;
   private pollTimer?: ReturnType<typeof setInterval>;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
@@ -84,9 +85,17 @@ export class App implements OnInit, OnDestroy {
     clearInterval(this.heartbeatTimer);
   }
 
-  private heartbeat(): void {
-    const sent = navigator.sendBeacon?.('/api/heartbeat/' + this.screenId, new Blob([], { type: 'application/json' }));
-    if (!sent) fetch('/api/heartbeat/' + this.screenId, { method: 'POST' }).catch(() => {});
+  private async heartbeat(): Promise<void> {
+    try {
+      const res = await fetch('/api/heartbeat/' + this.screenId, { method: 'POST' });
+      const data = await res.json();
+      // Admin pediu reload dessa tela depois que esse player carregou: recarrega pra pegar a versao nova.
+      if (data.reloadAt && data.reloadAt > this.bootTime) {
+        location.reload();
+      }
+    } catch {
+      /* rede instavel, tenta de novo no proximo heartbeat */
+    }
   }
 
   private cacheKey(): string {

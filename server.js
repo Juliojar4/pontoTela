@@ -66,9 +66,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_impressions_screen ON impressions(screenId);
 `);
 
-// Banco criado antes do heartbeat existir nao tem essa coluna ainda.
+// Banco criado antes do heartbeat/reload existir nao tem essas colunas ainda.
 const hasLastSeen = db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'lastSeen'").get();
 if (!hasLastSeen) db.exec('ALTER TABLE screens ADD COLUMN lastSeen INTEGER');
+const hasReloadAt = db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'reloadAt'").get();
+if (!hasReloadAt) db.exec('ALTER TABLE screens ADD COLUMN reloadAt INTEGER');
 
 // Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
 // Se algo der errado no meio do caminho, desfaz e apaga o .sqlite pra tentar de novo do zero
@@ -182,6 +184,11 @@ app.delete('/api/screens/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
+// Marca a tela pra recarregar; o player pega isso no proximo heartbeat (ate ~25s).
+app.post('/api/screens/:id/reload', requireAuth, (req, res) => {
+  db.prepare('UPDATE screens SET reloadAt = ? WHERE id = ?').run(Date.now(), req.params.id);
+  res.json({ ok: true });
+});
 
 // ---------- Midias ----------
 app.get('/api/media', requireAuth, (req, res) => {
@@ -247,7 +254,8 @@ app.get('/api/play/:screenId', (req, res) => {
 // ---------- Heartbeat (o player avisa que esta vivo, pra tela aparecer online no painel) ----------
 app.post('/api/heartbeat/:screenId', (req, res) => {
   db.prepare('UPDATE screens SET lastSeen = ? WHERE id = ?').run(Date.now(), req.params.screenId);
-  res.json({ ok: true });
+  const row = db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(req.params.screenId);
+  res.json({ ok: true, reloadAt: row?.reloadAt ?? null });
 });
 
 // ---------- Impressoes (prova de exibicao pro anunciante) ----------

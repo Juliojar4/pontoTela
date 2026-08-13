@@ -18,4 +18,8 @@ export class ScreensService {
   remove(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>('/api/screens/' + id));
   }
+
+  reload(id: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>('/api/screens/' + id + '/reload', {}));
+  }
 }
