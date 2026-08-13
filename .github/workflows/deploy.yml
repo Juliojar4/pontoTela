@@ -1,0 +1,27 @@
+name: Deploy para o VPS
+
+on:
+  push:
+    branches: [ master ]      # troque para "master" se sua branch principal for master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conectar no VPS e atualizar
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/dooh-cms
+            echo ">> Puxando código novo..."
+            git fetch --all
+            git reset --hard origin/master
+            echo ">> Instalando dependências (se mudaram)..."
+            npm install --omit=dev
+            echo ">> Reiniciando o app..."
+            pm2 restart dooh
+            echo ">> Deploy concluído com sucesso."
