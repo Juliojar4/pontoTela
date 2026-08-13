@@ -22,6 +22,8 @@ jobs:
             git reset --hard origin/master
             echo ">> Instalando dependências (se mudaram)..."
             npm install --omit=dev
+            echo ">> Buildando o frontend (admin + player)..."
+            cd frontend && npm install && npm run build && cd ..
             echo ">> Reiniciando o app..."
             pm2 restart dooh
             echo ">> Deploy concluído com sucesso."
