@@ -10,7 +10,10 @@ import { Media } from '../core/models';
           @if (m.type === 'image') {
             <img class="thumb" [src]="'/uploads/' + m.filename" />
           } @else {
-            <span class="thumb video">🎬</span>
+            <span class="thumb video-thumb">
+              <video [src]="'/uploads/' + m.filename + '#t=0.1'" preload="metadata" muted playsinline></video>
+              <span class="play">▶</span>
+            </span>
           }
           <span class="label">{{ m.advertiser || m.originalName }}</span>
         } @else {
@@ -25,7 +28,10 @@ import { Media } from '../core/models';
               @if (m.type === 'image') {
                 <img class="thumb" [src]="'/uploads/' + m.filename" />
               } @else {
-                <span class="thumb video">🎬</span>
+                <span class="thumb video-thumb">
+                  <video [src]="'/uploads/' + m.filename + '#t=0.1'" preload="metadata" muted playsinline></video>
+                  <span class="play">▶</span>
+                </span>
               }
               <span class="label">{{ m.advertiser || m.originalName }}</span>
             </button>
@@ -46,7 +52,15 @@ import { Media } from '../core/models';
     .trigger .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trigger .label.muted { color: var(--muted); }
     .chevron { color: var(--muted); font-size: 11px; flex-shrink: 0; }
-    .thumb.video { display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .video-thumb {
+      width: 52px; height: 34px; border-radius: 5px; background: #000;
+      position: relative; overflow: hidden; flex-shrink: 0; display: inline-block;
+    }
+    .video-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .video-thumb .play {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 10px; text-shadow: 0 1px 2px rgba(0,0,0,.9); pointer-events: none;
+    }
 
     .menu {
       position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0;
