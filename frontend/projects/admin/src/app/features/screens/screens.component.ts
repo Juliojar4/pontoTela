@@ -18,17 +18,19 @@ import { ScreensService } from '../../core/screens.service';
     <div class="card">
       <h2>Telas cadastradas</h2>
       @if (screens().length) {
-        <table>
-          <tr><th>Nome</th><th>Local</th><th>Link do player</th><th></th></tr>
-          @for (s of screens(); track s.id) {
-            <tr>
-              <td>{{ s.name }}</td>
-              <td class="muted">{{ s.location || '—' }}</td>
-              <td><a class="link" [href]="'/player/?screen=' + s.id" target="_blank">abrir player ↗</a></td>
-              <td><button class="del" (click)="remove(s.id)">excluir</button></td>
-            </tr>
-          }
-        </table>
+        <div class="table-wrap">
+          <table>
+            <tr><th>Nome</th><th>Local</th><th>Link do player</th><th></th></tr>
+            @for (s of screens(); track s.id) {
+              <tr>
+                <td>{{ s.name }}</td>
+                <td class="muted">{{ s.location || '—' }}</td>
+                <td><a class="link" [href]="'/player/?screen=' + s.id" target="_blank">abrir player ↗</a></td>
+                <td><button class="del" (click)="remove(s.id)">excluir</button></td>
+              </tr>
+            }
+          </table>
+        </div>
       } @else {
         <div class="empty">Nenhuma tela ainda. Cada tela vira uma URL que você abre na TV/box.</div>
       }

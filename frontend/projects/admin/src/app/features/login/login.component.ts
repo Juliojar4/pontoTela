@@ -22,8 +22,8 @@ import { AuthService } from '../../core/auth.service';
     </div>
   `,
   styles: [`
-    .wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .card { width: 280px; }
+    .wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .card { width: 100%; max-width: 280px; }
     .error { color: var(--danger); font-size: 13px; margin: 8px 0 0; }
   `],
 })

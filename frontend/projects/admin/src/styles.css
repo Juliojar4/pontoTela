@@ -15,6 +15,7 @@ html, body {
   font-family: system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--txt);
+  -webkit-text-size-adjust: 100%;
 }
 input, select, button { font-family: inherit; }
 
@@ -23,7 +24,7 @@ input, select, button { font-family: inherit; }
 label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 5px; }
 input, select {
   width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--txt);
-  padding: 9px 11px; border-radius: 8px; font-size: 14px;
+  padding: 9px 11px; border-radius: 8px; font-size: 16px;
 }
 .row { display: flex; gap: 12px; flex-wrap: wrap; }
 .row > div { flex: 1; min-width: 140px; }
@@ -33,9 +34,10 @@ button.primary {
 }
 button.primary:disabled { opacity: .6; cursor: default; }
 button.ghost { background: transparent; border: 1px solid var(--line); color: var(--txt); padding: 6px 11px; border-radius: 7px; cursor: pointer; font-size: 13px; }
-button.del { background: transparent; border: 0; color: var(--danger); cursor: pointer; font-size: 13px; }
+button.del { background: transparent; border: 0; color: var(--danger); cursor: pointer; font-size: 13px; padding: 6px 4px; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
 th { color: var(--muted); font-weight: 500; font-size: 12px; }
 .tag { font-size: 11px; background: var(--bg); border: 1px solid var(--line); padding: 2px 7px; border-radius: 20px; color: var(--muted); }
 .thumb { width: 52px; height: 34px; object-fit: cover; border-radius: 5px; background: #000; }
@@ -43,3 +45,11 @@ a.link { color: var(--accent); text-decoration: none; font-size: 13px; }
 .muted { color: var(--muted); font-size: 13px; }
 .empty { color: var(--muted); font-size: 14px; padding: 14px 4px; }
 .big { font-size: 26px; font-weight: 650; }
+
+@media (max-width: 640px) {
+  .card { padding: 14px; border-radius: 10px; }
+  .row { gap: 10px; }
+  .row > div { min-width: 100%; }
+  .table-wrap { margin: 0 -14px; padding: 0 14px; }
+  button.primary { width: 100%; }
+}

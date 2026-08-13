@@ -23,24 +23,26 @@ import { MediaService } from '../../core/media.service';
     <div class="card">
       <h2>Biblioteca</h2>
       @if (media().length) {
-        <table>
-          <tr><th></th><th>Anunciante</th><th>Arquivo</th><th>Tipo</th><th></th></tr>
-          @for (m of media(); track m.id) {
-            <tr>
-              <td>
-                @if (m.type === 'image') {
-                  <img class="thumb" [src]="'/uploads/' + m.filename" />
-                } @else {
-                  🎬
-                }
-              </td>
-              <td>{{ m.advertiser || '—' }}</td>
-              <td class="muted">{{ m.originalName }}</td>
-              <td><span class="tag">{{ m.type }}</span></td>
-              <td><button class="del" (click)="remove(m.id)">excluir</button></td>
-            </tr>
-          }
-        </table>
+        <div class="table-wrap">
+          <table>
+            <tr><th></th><th>Anunciante</th><th>Arquivo</th><th>Tipo</th><th></th></tr>
+            @for (m of media(); track m.id) {
+              <tr>
+                <td>
+                  @if (m.type === 'image') {
+                    <img class="thumb" [src]="'/uploads/' + m.filename" />
+                  } @else {
+                    🎬
+                  }
+                </td>
+                <td>{{ m.advertiser || '—' }}</td>
+                <td class="muted">{{ m.originalName }}</td>
+                <td><span class="tag">{{ m.type }}</span></td>
+                <td><button class="del" (click)="remove(m.id)">excluir</button></td>
+              </tr>
+            }
+          </table>
+        </div>
       } @else {
         <div class="empty">Nenhuma mídia enviada.</div>
       }

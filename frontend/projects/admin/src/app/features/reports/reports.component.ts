@@ -28,12 +28,14 @@ import { ReportsService } from '../../core/reports.service';
         <div style="margin-top:16px">
           <div class="big">{{ r.total.toLocaleString('pt-BR') }} <span class="muted" style="font-size:14px">exibições no período</span></div>
           @if (rows().length) {
-            <table style="margin-top:12px">
-              <tr><th>Anunciante</th><th>Exibições</th></tr>
-              @for (row of rows(); track row[0]) {
-                <tr><td>{{ row[0] }}</td><td>{{ row[1].toLocaleString('pt-BR') }}</td></tr>
-              }
-            </table>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <tr><th>Anunciante</th><th>Exibições</th></tr>
+                @for (row of rows(); track row[0]) {
+                  <tr><td>{{ row[0] }}</td><td>{{ row[1].toLocaleString('pt-BR') }}</td></tr>
+                }
+              </table>
+            </div>
           } @else {
             <p class="muted">Sem exibições no período.</p>
           }

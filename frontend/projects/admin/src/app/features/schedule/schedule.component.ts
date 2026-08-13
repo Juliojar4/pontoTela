@@ -38,28 +38,30 @@ import { PlaylistsService } from '../../core/playlists.service';
       <div class="card">
         <h2>No ar nesta tela</h2>
         @if (list().length) {
-          <table>
-            <tr><th>#</th><th>Anunciante</th><th>Duração</th><th>Campanha</th><th></th></tr>
-            @for (item of list(); track $index) {
-              <tr>
-                <td class="muted">{{ $index + 1 }}</td>
-                <td>{{ mediaFor(item.mediaId)?.advertiser || mediaFor(item.mediaId)?.originalName || '?' }}</td>
-                <td>
-                  @if (mediaFor(item.mediaId)?.type === 'video') {
-                    <span class="muted">vídeo</span>
-                  } @else {
-                    {{ item.duration }}s
-                  }
-                </td>
-                <td class="muted">{{ item.startDate || '—' }} → {{ item.endDate || '—' }}</td>
-                <td>
-                  <button class="ghost" (click)="move($index, -1)">↑</button>
-                  <button class="ghost" (click)="move($index, 1)">↓</button>
-                  <button class="del" (click)="removeItem($index)">remover</button>
-                </td>
-              </tr>
-            }
-          </table>
+          <div class="table-wrap">
+            <table>
+              <tr><th>#</th><th>Anunciante</th><th>Duração</th><th>Campanha</th><th></th></tr>
+              @for (item of list(); track $index) {
+                <tr>
+                  <td class="muted">{{ $index + 1 }}</td>
+                  <td>{{ mediaFor(item.mediaId)?.advertiser || mediaFor(item.mediaId)?.originalName || '?' }}</td>
+                  <td>
+                    @if (mediaFor(item.mediaId)?.type === 'video') {
+                      <span class="muted">vídeo</span>
+                    } @else {
+                      {{ item.duration }}s
+                    }
+                  </td>
+                  <td class="muted">{{ item.startDate || '—' }} → {{ item.endDate || '—' }}</td>
+                  <td>
+                    <button class="ghost" (click)="move($index, -1)">↑</button>
+                    <button class="ghost" (click)="move($index, 1)">↓</button>
+                    <button class="del" (click)="removeItem($index)">remover</button>
+                  </td>
+                </tr>
+              }
+            </table>
+          </div>
           <p class="muted" style="margin-top:12px">Loop total: {{ loopSeconds() }}s por volta.</p>
         } @else {
           <div class="empty">Nada programado. A tela mostra "Sem conteúdo".</div>
