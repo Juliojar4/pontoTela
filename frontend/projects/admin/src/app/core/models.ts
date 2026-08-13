@@ -3,6 +3,7 @@ export interface Screen {
   name: string;
   location: string;
   createdAt: number;
+  lastSeen: number | null;
 }
 
 export interface Media {

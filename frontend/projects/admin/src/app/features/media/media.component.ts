@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Media } from '../../core/models';
 import { MediaService } from '../../core/media.service';
+import { UiService } from '../../core/ui.service';
 
 @Component({
   selector: 'app-media',
@@ -55,7 +56,7 @@ export class MediaComponent implements OnInit {
   advertiser = '';
   private file: File | null = null;
 
-  constructor(private mediaService: MediaService) {}
+  constructor(private mediaService: MediaService, private ui: UiService) {}
 
   async ngOnInit(): Promise<void> {
     await this.refresh();
@@ -71,22 +72,26 @@ export class MediaComponent implements OnInit {
   }
 
   async upload(fileInput: HTMLInputElement): Promise<void> {
-    if (!this.file) { alert('Escolha um arquivo'); return; }
+    if (!this.file) { this.ui.toast('Escolha um arquivo', 'error'); return; }
     this.uploading.set(true);
     try {
       await this.mediaService.upload(this.file, this.advertiser.trim());
       this.advertiser = '';
       this.file = null;
       fileInput.value = '';
+      this.ui.toast('Mídia enviada.', 'success');
       await this.refresh();
+    } catch {
+      this.ui.toast('Falha ao enviar a mídia.', 'error');
     } finally {
       this.uploading.set(false);
     }
   }
 
   async remove(id: string): Promise<void> {
-    if (!confirm('Excluir esta mídia?')) return;
+    if (!(await this.ui.confirm('Excluir esta mídia?'))) return;
     await this.mediaService.remove(id);
+    this.ui.toast('Mídia excluída.', 'success');
     await this.refresh();
   }
 }

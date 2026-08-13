@@ -41,8 +41,8 @@ export class LoginComponent {
     try {
       await this.auth.login(this.password);
       this.router.navigate(['/telas']);
-    } catch {
-      this.error.set('Senha inválida.');
+    } catch (err: any) {
+      this.error.set(err?.error?.error || 'Senha inválida.');
     } finally {
       this.loading.set(false);
     }

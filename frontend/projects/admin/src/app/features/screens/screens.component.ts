@@ -1,7 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Screen } from '../../core/models';
 import { ScreensService } from '../../core/screens.service';
+import { UiService } from '../../core/ui.service';
+
+const ONLINE_WINDOW_MS = 90 * 1000;
+const REFRESH_MS = 20 * 1000;
 
 @Component({
   selector: 'app-screens',
@@ -20,9 +24,14 @@ import { ScreensService } from '../../core/screens.service';
       @if (screens().length) {
         <div class="table-wrap">
           <table>
-            <tr><th>Nome</th><th>Local</th><th>Link do player</th><th></th></tr>
+            <tr><th>Status</th><th>Nome</th><th>Local</th><th>Link do player</th><th></th></tr>
             @for (s of screens(); track s.id) {
               <tr>
+                <td>
+                  <span class="status" [class.online]="isOnline(s)">
+                    <span class="dot"></span>{{ isOnline(s) ? 'online' : lastSeenLabel(s) }}
+                  </span>
+                </td>
                 <td>{{ s.name }}</td>
                 <td class="muted">{{ s.location || '—' }}</td>
                 <td><a class="link" [href]="'/player/?screen=' + s.id" target="_blank">abrir player ↗</a></td>
@@ -36,33 +45,61 @@ import { ScreensService } from '../../core/screens.service';
       }
     </div>
   `,
+  styles: [`
+    .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .status.online { color: var(--ok); }
+    .status.online .dot { background: var(--ok); }
+  `],
 })
-export class ScreensComponent implements OnInit {
+export class ScreensComponent implements OnInit, OnDestroy {
   readonly screens = signal<Screen[]>([]);
   name = '';
   location = '';
+  private refreshTimer?: ReturnType<typeof setInterval>;
 
-  constructor(private screensService: ScreensService) {}
+  constructor(private screensService: ScreensService, private ui: UiService) {}
 
   async ngOnInit(): Promise<void> {
     await this.refresh();
+    this.refreshTimer = setInterval(() => this.refresh(), REFRESH_MS);
+  }
+
+  ngOnDestroy(): void {
+    clearInterval(this.refreshTimer);
   }
 
   async refresh(): Promise<void> {
     this.screens.set(await this.screensService.list());
   }
 
+  isOnline(s: Screen): boolean {
+    return !!s.lastSeen && Date.now() - s.lastSeen < ONLINE_WINDOW_MS;
+  }
+
+  lastSeenLabel(s: Screen): string {
+    if (!s.lastSeen) return 'nunca visto';
+    const mins = Math.floor((Date.now() - s.lastSeen) / 60000);
+    if (mins < 1) return 'offline há instantes';
+    if (mins < 60) return `offline há ${mins}min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `offline há ${hours}h`;
+    return `offline há ${Math.floor(hours / 24)}d`;
+  }
+
   async add(): Promise<void> {
-    if (!this.name.trim()) { alert('Dê um nome à tela'); return; }
+    if (!this.name.trim()) { this.ui.toast('Dê um nome à tela', 'error'); return; }
     await this.screensService.create(this.name.trim(), this.location.trim());
     this.name = '';
     this.location = '';
+    this.ui.toast('Tela adicionada.', 'success');
     await this.refresh();
   }
 
   async remove(id: string): Promise<void> {
-    if (!confirm('Excluir esta tela?')) return;
+    if (!(await this.ui.confirm('Excluir esta tela?'))) return;
     await this.screensService.remove(id);
+    this.ui.toast('Tela excluída.', 'success');
     await this.refresh();
   }
 }

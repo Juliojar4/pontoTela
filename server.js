@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 
 const app = express();
+app.set('trust proxy', 1); // atras do Caddy: confia no X-Forwarded-For do 1o hop pra pegar o IP real
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'data.sqlite');
 const LEGACY_DATA_FILE = path.join(__dirname, 'data.json');
@@ -34,7 +35,8 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     location TEXT DEFAULT '',
-    createdAt INTEGER NOT NULL
+    createdAt INTEGER NOT NULL,
+    lastSeen INTEGER
   );
   CREATE TABLE IF NOT EXISTS media (
     id TEXT PRIMARY KEY,
@@ -63,6 +65,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_impressions_ts ON impressions(ts);
   CREATE INDEX IF NOT EXISTS idx_impressions_screen ON impressions(screenId);
 `);
+
+// Banco criado antes do heartbeat existir nao tem essa coluna ainda.
+const hasLastSeen = db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'lastSeen'").get();
+if (!hasLastSeen) db.exec('ALTER TABLE screens ADD COLUMN lastSeen INTEGER');
 
 // Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
 // Se algo der errado no meio do caminho, desfaz e apaga o .sqlite pra tentar de novo do zero
@@ -122,11 +128,30 @@ function requireAuth(req, res, next) {
 }
 
 // ---------- Autenticacao ----------
+// Protecao simples contra forca bruta: N tentativas erradas por IP numa janela de tempo.
+const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+const loginAttempts = new Map(); // ip -> { count, resetAt }
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginAttempts) if (now > entry.resetAt) loginAttempts.delete(ip);
+}, LOGIN_WINDOW_MS).unref();
+
 app.post('/api/login', (req, res) => {
+  const ip = req.ip;
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (entry && now < entry.resetAt && entry.count >= LOGIN_MAX_ATTEMPTS) {
+    return res.status(429).json({ error: `muitas tentativas, tente novamente em ${Math.ceil((entry.resetAt - now) / 1000)}s` });
+  }
+
   const { password } = req.body || {};
   if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
+    if (entry && now < entry.resetAt) entry.count++;
+    else loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
     return res.status(401).json({ error: 'senha invalida' });
   }
+  loginAttempts.delete(ip);
   req.session.authenticated = true;
   res.json({ ok: true });
 });
@@ -217,6 +242,12 @@ app.get('/api/play/:screenId', (req, res) => {
     return true;
   }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser }));
   res.json({ screenId: req.params.screenId, items });
+});
+
+// ---------- Heartbeat (o player avisa que esta vivo, pra tela aparecer online no painel) ----------
+app.post('/api/heartbeat/:screenId', (req, res) => {
+  db.prepare('UPDATE screens SET lastSeen = ? WHERE id = ?').run(Date.now(), req.params.screenId);
+  res.json({ ok: true });
 });
 
 // ---------- Impressoes (prova de exibicao pro anunciante) ----------

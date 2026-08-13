@@ -4,6 +4,7 @@ import { Media, PlaylistItem, Screen } from '../../core/models';
 import { ScreensService } from '../../core/screens.service';
 import { MediaService } from '../../core/media.service';
 import { PlaylistsService } from '../../core/playlists.service';
+import { UiService } from '../../core/ui.service';
 
 @Component({
   selector: 'app-schedule',
@@ -84,6 +85,7 @@ export class ScheduleComponent implements OnInit {
     private screensService: ScreensService,
     private mediaService: MediaService,
     private playlistsService: PlaylistsService,
+    private ui: UiService,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -116,13 +118,14 @@ export class ScheduleComponent implements OnInit {
   }
 
   async addToPlaylist(): Promise<void> {
-    if (!this.mediaId) { alert('Envie uma mídia primeiro'); return; }
+    if (!this.mediaId) { this.ui.toast('Envie uma mídia primeiro', 'error'); return; }
     await this.playlistsService.add(this.screenId, {
       mediaId: this.mediaId,
       duration: Number(this.duration) || 10,
       startDate: this.startDate || null,
       endDate: this.endDate || null,
     });
+    this.ui.toast('Adicionado à programação.', 'success');
     await this.loadList();
   }
 

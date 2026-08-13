@@ -11,6 +11,7 @@ interface PlayItem {
 }
 
 const POLL_MS = 5 * 60 * 1000;
+const HEARTBEAT_MS = 25 * 1000;
 
 @Component({
   selector: 'app-root',
@@ -44,6 +45,7 @@ export class App implements OnInit, OnDestroy {
   private screenId = '';
   private advanceTimer?: ReturnType<typeof setTimeout>;
   private pollTimer?: ReturnType<typeof setInterval>;
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
 
   constructor(private http: HttpClient) {}
 
@@ -56,11 +58,19 @@ export class App implements OnInit, OnDestroy {
     }
     this.fetchPlaylist().then(() => this.playNext());
     this.pollTimer = setInterval(() => this.fetchPlaylist(), POLL_MS);
+    this.heartbeat();
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
   }
 
   ngOnDestroy(): void {
     clearTimeout(this.advanceTimer);
     clearInterval(this.pollTimer);
+    clearInterval(this.heartbeatTimer);
+  }
+
+  private heartbeat(): void {
+    const sent = navigator.sendBeacon?.('/api/heartbeat/' + this.screenId, new Blob([], { type: 'application/json' }));
+    if (!sent) fetch('/api/heartbeat/' + this.screenId, { method: 'POST' }).catch(() => {});
   }
 
   private cacheKey(): string {
