@@ -18,6 +18,11 @@ interface Layer {
 const POLL_MS = 5 * 60 * 1000;
 const HEARTBEAT_MS = 25 * 1000;
 const TRANSITION_MS = 700;
+// Se o video nem carregar (webview sem codec, arquivo corrompido, rede caiu), nao da pra
+// ficar parado num frame preto pra sempre: passa pro proximo depois desse tempo.
+const VIDEO_LOAD_TIMEOUT_MS = 20 * 1000;
+// Folga depois da duracao real do video, caso o evento `ended` nunca chegue.
+const VIDEO_END_SLACK_MS = 3000;
 
 @Component({
   selector: 'app-root',
@@ -27,7 +32,18 @@ const TRANSITION_MS = 700;
       @for (l of layers(); track l.key) {
         <div class="layer" [class.active]="l.key === activeKey()">
           @if (l.item.type === 'video') {
-            <video [src]="l.item.url" autoplay muted playsinline (ended)="onVideoEnded(l.key)" (error)="onMediaError()"></video>
+            <video
+              [src]="l.item.url"
+              autoplay
+              muted
+              playsinline
+              preload="auto"
+              disablepictureinpicture
+              (loadedmetadata)="onVideoReady(l.key, $event)"
+              (canplay)="onVideoReady(l.key, $event)"
+              (ended)="onVideoEnded(l.key)"
+              (error)="onMediaError()"
+            ></video>
           } @else {
             <img [src]="l.item.url" (error)="onMediaError()" />
           }
@@ -67,10 +83,11 @@ export class App implements OnInit, OnDestroy {
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    const params = new URLSearchParams(location.search);
-    this.screenId = params.get('screen') || '';
+    // Aceita a URL curta (/1, /2) e tambem a antiga (/player/?screen=ID).
+    const fromPath = location.pathname.match(/^\/(\d+)\/?$/);
+    this.screenId = fromPath ? fromPath[1] : new URLSearchParams(location.search).get('screen') || '';
     if (!this.screenId) {
-      this.message.set('Falta ?screen=ID na URL');
+      this.message.set('Abra esta tela pelo link do painel (ex: /1)');
       return;
     }
     this.fetchPlaylist().then(() => this.playNext());
@@ -166,8 +183,27 @@ export class App implements OnInit, OnDestroy {
     // depois da transicao, descarta a camada antiga (fadeu embaixo)
     setTimeout(() => this.layers.update((ls) => ls.filter((l) => l.key === key)), TRANSITION_MS + 100);
 
-    if (item.type === 'image') {
-      this.advanceTimer = setTimeout(() => this.playNext(), (item.duration || 10) * 1000);
+    this.advanceTimer = setTimeout(
+      () => this.playNext(),
+      item.type === 'image' ? (item.duration || 10) * 1000 : VIDEO_LOAD_TIMEOUT_MS,
+    );
+  }
+
+  // Webviews de kiosk (Fully Kiosk & cia) costumam ignorar o atributo `autoplay`: so tocam
+  // quando alguem chama play() no elemento, e mudo. Aqui garantimos os dois.
+  onVideoReady(key: number, ev: Event): void {
+    if (key !== this.layerSeq) return;
+    const video = ev.target as HTMLVideoElement;
+    video.muted = true;
+    video.play().catch(() => {
+      /* bloqueado mesmo assim: o watchdog abaixo segue pro proximo item */
+    });
+    if (Number.isFinite(video.duration) && video.duration > 0) {
+      clearTimeout(this.advanceTimer);
+      this.advanceTimer = setTimeout(
+        () => this.playNext(),
+        video.duration * 1000 + VIDEO_END_SLACK_MS,
+      );
     }
   }
 

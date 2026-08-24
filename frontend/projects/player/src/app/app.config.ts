@@ -6,8 +6,11 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideHttpClient(),
-    provideServiceWorker('ngsw-worker.js', {
+    // Servido tambem na raiz pelo server.js: so com escopo '/' o service worker
+    // consegue controlar as URLs curtas do player (/1, /2) e manter o cache offline.
+    provideServiceWorker('/ngsw-worker.js', {
       enabled: !isDevMode(),
+      scope: '/',
       registrationStrategy: 'registerWhenStable:30000',
     }),
   ],

@@ -64,6 +64,10 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_impressions_ts ON impressions(ts);
   CREATE INDEX IF NOT EXISTS idx_impressions_screen ON impressions(screenId);
+  CREATE TABLE IF NOT EXISTS counters (
+    name TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+  );
 `);
 
 // Banco criado antes do heartbeat/reload existir nao tem essas colunas ainda.
@@ -71,6 +75,14 @@ const hasLastSeen = db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE
 if (!hasLastSeen) db.exec('ALTER TABLE screens ADD COLUMN lastSeen INTEGER');
 const hasReloadAt = db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'reloadAt'").get();
 if (!hasReloadAt) db.exec('ALTER TABLE screens ADD COLUMN reloadAt INTEGER');
+// Codigo curto e numerico da tela (1, 2, 3...) pra URL do player ficar /1, /2 em vez do id hexadecimal.
+const hasCode = db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'code'").get();
+if (!hasCode) {
+  db.exec('ALTER TABLE screens ADD COLUMN code INTEGER');
+  const setCode = db.prepare('UPDATE screens SET code = ? WHERE id = ?');
+  db.prepare('SELECT id FROM screens ORDER BY createdAt').all().forEach((s, ix) => setCode.run(ix + 1, s.id));
+}
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_screens_code ON screens(code)');
 
 // Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
 // Se algo der errado no meio do caminho, desfaz e apaga o .sqlite pra tentar de novo do zero
@@ -107,6 +119,23 @@ if (dbIsNew && fs.existsSync(LEGACY_DATA_FILE)) {
 }
 
 const id = () => crypto.randomBytes(6).toString('hex');
+// Codigo sempre crescente: se uma tela for excluida o numero dela nao volta a ser usado,
+// senao uma TV antiga apontada pra /2 passaria a exibir a programacao de outro ponto.
+function nextScreenCode() {
+  const used = db.prepare("SELECT value FROM counters WHERE name = 'screenCode'").get();
+  const max = db.prepare('SELECT COALESCE(MAX(code), 0) AS m FROM screens').get().m;
+  const next = Math.max(used?.value ?? 0, max) + 1;
+  db.prepare("INSERT INTO counters (name, value) VALUES ('screenCode', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value").run(next);
+  return next;
+}
+// O player pode se identificar pelo codigo curto (/1) ou pelo id antigo (?screen=abc123).
+function resolveScreenId(key) {
+  if (/^\d+$/.test(key)) {
+    const row = db.prepare('SELECT id FROM screens WHERE code = ?').get(Number(key));
+    return row ? row.id : null;
+  }
+  return key;
+}
 
 app.use(express.json());
 app.use(session({
@@ -118,8 +147,22 @@ app.use(session({
 }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '365d' }));
 app.use('/admin', express.static(path.join(__dirname, 'public/admin/browser')));
-app.use('/player', express.static(path.join(__dirname, 'public/player/browser')));
-app.get('/', (req, res) => res.redirect('/admin/'));
+const PLAYER_DIR = path.join(__dirname, 'public/player/browser');
+app.use('/player', express.static(PLAYER_DIR));
+// URL curta do player: /1, /2... O HTML e o mesmo do /player (o <base href="/player/">
+// faz os assets continuarem resolvendo certo), so o caminho fica facil de digitar na TV.
+app.get('/:code(\\d+)', (req, res) => {
+  if (!resolveScreenId(req.params.code)) return res.status(404).send('Tela nao encontrada');
+  res.sendFile(path.join(PLAYER_DIR, 'index.html'));
+});
+// O service worker precisa morar na raiz pra ter escopo sobre as URLs curtas; os arquivos
+// sao os mesmos gerados no build do player.
+for (const f of ['ngsw-worker.js', 'ngsw.json', 'safety-worker.js', 'worker-basic.min.js']) {
+  app.get('/' + f, (req, res) => res.sendFile(path.join(PLAYER_DIR, f)));
+}
+// Site institucional (estatico) na raiz do dominio. Fica DEPOIS de /admin e /player,
+// e como express.static so responde arquivo existente, as rotas de API abaixo seguem intactas.
+app.use('/', express.static(path.join(__dirname, 'public/site'), { extensions: ['html'] }));
 // Fallback pra roteamento client-side das SPAs (ex: /admin/telas ao dar F5)
 app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public/admin/browser/index.html')));
 app.get('/player/*', (req, res) => res.sendFile(path.join(__dirname, 'public/player/browser/index.html')));
@@ -175,8 +218,8 @@ app.get('/api/screens', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM screens ORDER BY createdAt').all());
 });
 app.post('/api/screens', requireAuth, (req, res) => {
-  const s = { id: id(), name: req.body.name || 'Tela', location: req.body.location || '', createdAt: Date.now() };
-  db.prepare('INSERT INTO screens (id, name, location, createdAt) VALUES (?, ?, ?, ?)').run(s.id, s.name, s.location, s.createdAt);
+  const s = { id: id(), code: nextScreenCode(), name: req.body.name || 'Tela', location: req.body.location || '', createdAt: Date.now() };
+  db.prepare('INSERT INTO screens (id, code, name, location, createdAt) VALUES (?, ?, ?, ?, ?)').run(s.id, s.code, s.name, s.location, s.createdAt);
   res.json(s);
 });
 app.delete('/api/screens/:id', requireAuth, (req, res) => {
@@ -236,33 +279,38 @@ app.put('/api/playlists/:screenId', requireAuth, (req, res) => {
 
 // ---------- Feed que o PLAYER consome (ja filtrado por datas de campanha) ----------
 app.get('/api/play/:screenId', (req, res) => {
+  const screenId = resolveScreenId(req.params.screenId);
+  if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
   const today = new Date().toISOString().slice(0, 10);
   const rows = db.prepare(`
     SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.advertiser
     FROM playlist_items p JOIN media m ON m.id = p.mediaId
     WHERE p.screenId = ?
     ORDER BY p.position
-  `).all(req.params.screenId);
+  `).all(screenId);
   const items = rows.filter(r => {
     if (r.startDate && today < r.startDate) return false;
     if (r.endDate && today > r.endDate) return false;
     return true;
   }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser }));
-  res.json({ screenId: req.params.screenId, items });
+  res.json({ screenId, items });
 });
 
 // ---------- Heartbeat (o player avisa que esta vivo, pra tela aparecer online no painel) ----------
 app.post('/api/heartbeat/:screenId', (req, res) => {
-  db.prepare('UPDATE screens SET lastSeen = ? WHERE id = ?').run(Date.now(), req.params.screenId);
-  const row = db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(req.params.screenId);
+  const screenId = resolveScreenId(req.params.screenId);
+  if (!screenId) return res.status(404).json({ error: 'tela nao encontrada' });
+  db.prepare('UPDATE screens SET lastSeen = ? WHERE id = ?').run(Date.now(), screenId);
+  const row = db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(screenId);
   res.json({ ok: true, reloadAt: row?.reloadAt ?? null });
 });
 
 // ---------- Impressoes (prova de exibicao pro anunciante) ----------
 app.post('/api/impression', (req, res) => {
   const { screenId, mediaId } = req.body || {};
-  if (screenId && mediaId) {
-    db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)').run(screenId, mediaId, Date.now());
+  const resolved = screenId ? resolveScreenId(String(screenId)) : null;
+  if (resolved && mediaId) {
+    db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)').run(resolved, mediaId, Date.now());
   }
   res.json({ ok: true });
 });

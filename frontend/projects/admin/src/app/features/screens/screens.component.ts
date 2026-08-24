@@ -34,7 +34,9 @@ const REFRESH_MS = 20 * 1000;
                 </td>
                 <td>{{ s.name }}</td>
                 <td class="muted">{{ s.location || '—' }}</td>
-                <td><a class="link" [href]="'/player/?screen=' + s.id" target="_blank">abrir player ↗</a></td>
+                <td>
+                  <a class="link" [href]="'/' + s.code" target="_blank">{{ shortUrl(s) }} ↗</a>
+                </td>
                 <td>
                   <button class="ghost" [disabled]="reloading().has(s.id)" (click)="reload(s.id)">
                     {{ reloading().has(s.id) ? 'enviado ✓' : 'recarregar' }}
@@ -77,6 +79,11 @@ export class ScreensComponent implements OnInit, OnDestroy {
 
   async refresh(): Promise<void> {
     this.screens.set(await this.screensService.list());
+  }
+
+  // URL curta que vai ser digitada na TV / no Fully Kiosk.
+  shortUrl(s: Screen): string {
+    return location.host + '/' + s.code;
   }
 
   isOnline(s: Screen): boolean {

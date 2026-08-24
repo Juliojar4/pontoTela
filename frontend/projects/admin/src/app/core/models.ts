@@ -1,5 +1,6 @@
 export interface Screen {
   id: string;
+  code: number;
   name: string;
   location: string;
   createdAt: number;
