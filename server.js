@@ -147,25 +147,33 @@ app.use(session({
 }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '365d' }));
 app.use('/admin', express.static(path.join(__dirname, 'public/admin/browser')));
-const PLAYER_DIR = path.join(__dirname, 'public/player/browser');
-app.use('/player', express.static(PLAYER_DIR));
-// URL curta do player: /1, /2... O HTML e o mesmo do /player (o <base href="/player/">
-// faz os assets continuarem resolvendo certo), so o caminho fica facil de digitar na TV.
+// Player das TVs: HTML/JS estatico em ES5, sem framework. As caixinhas de TV rodam um
+// Android System WebView antigo que nao executa o bundle moderno do Angular (tela preta,
+// sem erro), entao o player mora fora do build do frontend de proposito.
+const PLAYER_DIR = path.join(__dirname, 'public/tv');
+const PLAYER_HTML = path.join(PLAYER_DIR, 'index.html');
+app.use('/tv', express.static(PLAYER_DIR));
+// URL curta que se digita na TV: /1, /2, /3...
 app.get('/:code(\\d+)', (req, res) => {
   if (!resolveScreenId(req.params.code)) return res.status(404).send('Tela nao encontrada');
-  res.sendFile(path.join(PLAYER_DIR, 'index.html'));
+  res.sendFile(PLAYER_HTML);
 });
-// O service worker precisa morar na raiz pra ter escopo sobre as URLs curtas; os arquivos
-// sao os mesmos gerados no build do player.
-for (const f of ['ngsw-worker.js', 'ngsw.json', 'safety-worker.js', 'worker-basic.min.js']) {
-  app.get('/' + f, (req, res) => res.sendFile(path.join(PLAYER_DIR, f)));
+// Service worker do player Angular antigo: manda desregistrar em vez de 404, senao a
+// versao velha continuaria sendo servida do cache nos aparelhos que ja abriram /player/.
+const UNREGISTER_SW =
+  'self.addEventListener("install",function(){self.skipWaiting()});' +
+  'self.addEventListener("activate",function(e){e.waitUntil(self.registration.unregister().then(function(){' +
+  'return self.clients.matchAll()}).then(function(cs){cs.forEach(function(c){c.navigate(c.url)})}))});';
+for (const p of ['/ngsw-worker.js', '/player/ngsw-worker.js', '/player/safety-worker.js']) {
+  app.get(p, (req, res) => res.type('application/javascript').send(UNREGISTER_SW));
 }
+// Link antigo (/player/?screen=ID) continua valido e cai no player novo.
+app.get(['/player', '/player/*'], (req, res) => res.sendFile(PLAYER_HTML));
 // Site institucional (estatico) na raiz do dominio. Fica DEPOIS de /admin e /player,
 // e como express.static so responde arquivo existente, as rotas de API abaixo seguem intactas.
 app.use('/', express.static(path.join(__dirname, 'public/site'), { extensions: ['html'] }));
 // Fallback pra roteamento client-side das SPAs (ex: /admin/telas ao dar F5)
 app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public/admin/browser/index.html')));
-app.get('/player/*', (req, res) => res.sendFile(path.join(__dirname, 'public/player/browser/index.html')));
 
 function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated) return next();

@@ -5,7 +5,7 @@
     "ng": "ng",
     "start": "ng serve admin --proxy-config projects/admin/proxy.conf.json",
     "start:player": "ng serve player --proxy-config projects/admin/proxy.conf.json",
-    "build": "ng build admin && ng build player",
+    "build": "ng build admin",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
