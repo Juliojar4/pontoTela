@@ -7,53 +7,58 @@ na raiz do domínio — veja `server.js`, logo depois das rotas `/admin` e `/pla
       index.html     conteúdo e estrutura das seções
       styles.css     visual
       main.js        CONFIG + animações
-      img/           favicon + fotos reais (a colocar)
+      img/           favicon
 
 Deploy: entra junto com o deploy normal (`git push` na master). Não precisa buildar nada.
 
-## O que falta preencher
+## Pra quem o site fala
 
-Tudo que ainda não tem dado real aparece na página com um marcador amarelo
-`[[PREENCHER: ...]]`. Para achar todos:
+O público é o **dono do estabelecimento** (barbearia, pet shop, lanchonete...),
+não o anunciante. O objetivo da página é uma coisa só: convencer o comércio a
+receber uma tela. O argumento central é que **não custa nada pro estabelecimento**
+e que o processo é todo por nossa conta.
 
-    grep -n "PREENCHER" public/site/index.html public/site/main.js
+Enquanto a rede está sendo montada, a página **não fala de preço, não mostra
+inventário de telas e não promete números de audiência** — não temos ponto
+instalado ainda e o site não inventa dado.
 
-### 1. WhatsApp (mais urgente)
-`public/site/main.js` → `CONFIG.whatsapp`. Só dígitos, com 55 + DDD.
-Enquanto estiver com o placeholder, aparece uma tarja de aviso no topo do site
-e os botões não abrem o WhatsApp. A tarja some sozinha quando o número entra.
+O tom é de conversa, não de folheto: frases curtas, "a gente" no lugar de
+"a empresa", "zap" no lugar de "WhatsApp comercial", e nenhuma promessa que a
+gente não possa cumprir na primeira visita. Ao mexer no texto, leia em voz alta:
+se não soar como alguém explicando no balcão, reescreva.
 
-Depois de preencher, troque também o número escrito por extenso no bloco
-"WhatsApp comercial: ..." lá no fim do `index.html`.
+Seções, na ordem: hero → a ideia → nosso processo (4 passos) → o que roda na
+tela → o combinado (o que cada lado coloca) → sem custo → FAQ → CTA.
 
-### 2. Números da rede
-`public/site/main.js` → `CONFIG.stats` (telas, pontos, horas).
-Enquanto forem `null`, o site mostra o marcador em vez de inventar número.
+## Contato
 
-### 3. Fotos reais dos pontos
-Substituir os quadros tracejados por fotos de verdade. Coloque os arquivos em
-`public/site/img/` e troque a `<div class="shot-ph">` por uma `<img>`:
+Canal único: WhatsApp **(15) 99627-3799**, configurado em
+`main.js` → `CONFIG.whatsapp` (`5515996273799`) e escrito por extenso no CTA
+final e no rodapé do `index.html`. Não há e-mail, formulário, backend nem
+coleta de lead — todo CTA vai pro WhatsApp.
 
-    <img src="img/ponto-01.jpg" alt="Tela do PontoTela instalada na barbearia X">
+## Quando a rede existir
 
-Arquivos esperados: `ponto-01.jpg`, `ponto-02.jpg`, `ponto-03.jpg`, `ambiente.jpg`.
-Foto de celular do ponto real vale mais que banco de imagem.
+Coisas que só entram no site depois de terem dado real:
 
-### 4. Preço e condições
-- preço do pacote "3 barbearias"
-- quantas trocas de arte estão inclusas
-- duração mínima do contrato (aparece no FAQ)
+- fotos dos pontos instalados (`img/ponto-01.jpg`, `ambiente.jpg`)
+- número de telas / pontos / horas de exibição
+- seção voltada ao anunciante (planos, preço, exclusividade de categoria,
+  relatório de exibições) — o histórico dessa versão está no git
 
-### 5. Nomes e bairros das barbearias
-Na seção "Onde as telas estão". Confirme antes com os donos dos pontos.
+## Visual
 
-### 6. Rodapé
-E-mail comercial e Instagram, se existirem.
+O hero é claro (creme com um brilho verde no alto à direita e um laranja fraco
+embaixo à esquerda) — a versão anterior era preta e ficou pesada demais pro
+assunto. As seções escuras seguem existindo no meio da página pra dar ritmo:
+verde em "o que roda na tela" e carvão em "sem custo".
 
 ## Notas
 
-- O relatório da seção "prova de entrega" é um **exemplo ilustrativo** e está
-  rotulado como tal na página. Os valores estão em `CONFIG.reportDemo`.
+- A seção "A ideia" é montada em volta da **régua da espera** (`.espera-card` /
+  `.rail` no CSS): a linha do tempo de uma espera de 31 minutos, com os marcos
+  em que a tela fala em verde e o desfecho em laranja. Os minutos são um exemplo
+  narrativo, não medição — se um dia virarem dado real, é só trocar os textos.
 - O mockup de TV do hero é uma simulação em CSS, com legenda dizendo isso.
-  Os anúncios de exemplo são fictícios.
-- Não há formulário, backend, nem coleta de lead: todo CTA vai pro WhatsApp.
+  As peças de exemplo são fictícias e mostram conteúdo *do próprio comércio*.
+- `CONFIG.slideDuration` controla o tempo de cada peça no mockup.

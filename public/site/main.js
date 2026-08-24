@@ -1,26 +1,14 @@
 /* PontoTela — site institucional
  * ---------------------------------------------------------------
- * TUDO QUE PRECISA SER PREENCHIDO ESTÁ NESTE BLOCO CONFIG.
- * Os [[PREENCHER: ...]] que aparecem no index.html são texto puro —
- * procure por "PREENCHER" no HTML pra achar todos.
+ * Site voltado pro DONO DO ESTABELECIMENTO: convencer o comércio a
+ * receber uma tela. Sem preço, sem inventário de telas, sem lead form.
+ * Contato único: WhatsApp abaixo.
  * --------------------------------------------------------------- */
 const CONFIG = {
-  // Número do WhatsApp comercial, só dígitos, com 55 + DDD. Ex.: '5515999998888'
-  whatsapp: '55XXXXXXXXXXX',
+  // Número do WhatsApp, só dígitos, com 55 + DDD.
+  whatsapp: '5515996273799',
 
-  // Números reais da rede. Deixe null enquanto não tiver o dado confirmado —
-  // o site mostra um marcador de "preencher" em vez de inventar número.
-  stats: {
-    telas:  null,   // ex.: 3
-    pontos: null,   // ex.: 3
-    horas:  null    // ex.: 300  (horas de tela por semana somando todos os pontos)
-  },
-
-  // Números do relatório de EXEMPLO da seção "prova de entrega".
-  // São ilustrativos e estão rotulados como tal na página.
-  reportDemo: { rep1: 4751, rep2: 3, rep3: 31 },
-
-  slideDuration: 5500 // ms por anúncio no mockup de TV
+  slideDuration: 5500 // ms por peça no mockup de TV
 };
 
 /* ---------------- WhatsApp ---------------- */
@@ -36,15 +24,9 @@ const CONFIG = {
       el.setAttribute('rel', 'noopener');
     } else {
       el.setAttribute('href', '#contato');
-      el.setAttribute('title', 'Número de WhatsApp ainda não configurado (CONFIG.whatsapp em main.js)');
+      console.warn('[PontoTela] CONFIG.whatsapp inválido. Edite public/site/main.js.');
     }
   });
-
-  if (!configured) {
-    const warn = document.getElementById('setup-warning');
-    if (warn) warn.hidden = false;
-    console.warn('[PontoTela] CONFIG.whatsapp ainda está com o placeholder. Edite public/site/main.js.');
-  }
 })();
 
 /* ---------------- Mockup de TV ---------------- */
@@ -113,55 +95,6 @@ const CONFIG = {
   // Rede de segurança: se por qualquer motivo o observer não disparar,
   // o conteúdo aparece mesmo assim. Site institucional não pode ficar invisível.
   setTimeout(() => items.forEach(el => el.classList.add('is-in')), 4000);
-
-  // barras do gráfico do relatório
-  const report = document.querySelector('.report');
-  if (report) {
-    const io2 = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { report.classList.add('is-in'); io2.disconnect(); }
-    }, { threshold: 0.35 });
-    io2.observe(report);
-  }
-})();
-
-/* ---------------- Contadores ---------------- */
-(function counters() {
-  const values = Object.assign({}, CONFIG.stats, CONFIG.reportDemo);
-  const nodes = document.querySelectorAll('[data-count]');
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  const labels = {
-    telas: 'telas ativas', pontos: 'pontos', horas: 'horas/semana'
-  };
-
-  function animate(el, target) {
-    if (reduced) { el.textContent = target.toLocaleString('pt-BR'); return; }
-    const dur = 1100, t0 = performance.now();
-    function frame(now) {
-      const p = Math.min(1, (now - t0) / dur);
-      const eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(target * eased).toLocaleString('pt-BR');
-      if (p < 1) requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  }
-
-  nodes.forEach(el => {
-    const key = el.getAttribute('data-count');
-    const val = values[key];
-
-    // Sem dado confirmado: marcador explícito, nunca um número inventado.
-    if (typeof val !== 'number') {
-      el.innerHTML = `<span class="fill">[[PREENCHER: ${labels[key] || key}]]</span>`;
-      return;
-    }
-
-    if (!('IntersectionObserver' in window)) { el.textContent = val.toLocaleString('pt-BR'); return; }
-    const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { animate(el, val); io.disconnect(); }
-    }, { threshold: 0.6 });
-    io.observe(el);
-  });
 })();
 
 /* ---------------- Topbar + botão flutuante ---------------- */

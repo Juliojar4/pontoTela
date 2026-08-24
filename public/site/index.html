@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PontoTela — mídia indoor em Itapetininga</title>
-<meta name="description" content="Rede de telas em comércios de Itapetininga. O ponto ganha a tela de graça. O anunciante local aparece pra quem já está do lado da loja dele.">
+<title>PontoTela — uma tela na sua loja, sem custo pra você</title>
+<meta name="description" content="A gente instala uma tela dentro do seu comércio em Itapetininga e cuida dela. Você não paga instalação, nem mensalidade, nem manutenção. Na tela passa o seu negócio, pra quem já está lá esperando.">
 <meta name="theme-color" content="#101511">
 <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
-<meta property="og:title" content="PontoTela — mídia indoor em Itapetininga">
-<meta property="og:description" content="Sua propaganda rodando na tela do comércio do bairro. Sem contrato longo, sem saber editar arte.">
+<meta property="og:title" content="PontoTela — uma tela na sua loja, sem custo pra você">
+<meta property="og:description" content="Instalação, conteúdo e manutenção por nossa conta. Você ganha uma tela que fala do seu negócio o dia inteiro.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,11 +16,6 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
-<div id="setup-warning" class="setup-warning" hidden>
-  <strong>Modo rascunho:</strong> o número de WhatsApp ainda não foi configurado.
-  Edite <code>CONFIG.whatsapp</code> em <code>public/site/main.js</code>. Este aviso some sozinho depois.
-</div>
 
 <header class="topbar" id="topbar">
   <a class="brand" href="#topo" aria-label="PontoTela, início">
@@ -35,13 +30,13 @@
     <span class="brand-name">Ponto<span>Tela</span></span>
   </a>
   <nav class="topnav">
-    <a href="#como-funciona">Como funciona</a>
-    <a href="#pontos">Onde estão as telas</a>
-    <a href="#comparativo">Comparativo</a>
-    <a href="#pontos-comerciais">Sou dono de ponto</a>
-    <a href="#planos">Planos</a>
+    <a href="#a-ideia">A ideia</a>
+    <a href="#como-funciona">Nosso processo</a>
+    <a href="#na-tela">O que roda na tela</a>
+    <a href="#sem-custo">Sem custo</a>
+    <a href="#faq">Dúvidas</a>
   </nav>
-  <a class="btn btn-wa btn-sm" data-wa="Oi! Vi o site do PontoTela e quero saber mais.">Falar no WhatsApp</a>
+  <a class="btn btn-wa btn-sm" data-wa="Oi! Vi o site do PontoTela e queria entender como funciona a tela na minha loja.">Falar no WhatsApp</a>
 </header>
 
 <!-- ============ HERO ============ -->
@@ -52,49 +47,47 @@
     <div class="hero-copy">
       <p class="eyebrow"><span class="dot"></span> Mídia indoor · Itapetininga/SP</p>
       <h1>
-        Sua propaganda na tela do comércio
-        onde seu cliente <em>já está sentado esperando.</em>
+        A gente coloca uma tela na sua loja.
+        <em>Você não paga nada.</em>
       </h1>
       <p class="lede">
-        O PontoTela instala telas em comércios de Itapetininga — barbearia, pet shop, autopeças —
-        e roda os anúncios de quem é <strong>daqui</strong>. O dono do ponto não paga nada.
-        Quem anuncia aparece pra gente que está a poucos minutos da sua porta,
-        parada, sem pressa e olhando pra frente.
+        Quem senta pra esperar no seu balcão passa uns 30 minutos olhando o celular.
+        A tela usa esse tempo pra mostrar o que você faz: <strong>seus serviços, seu horário,
+        sua promoção</strong>. E você não mexe em nada — a gente instala, monta o conteúdo
+        e cuida da tela.
       </p>
       <div class="hero-actions">
-        <a class="btn btn-primary" data-wa="Oi! Quero anunciar no PontoTela. Meu comércio é: ">
-          Quero anunciar
+        <a class="btn btn-primary" data-wa="Oi! Tenho um comércio em Itapetininga e queria uma tela na minha loja. Meu negócio é: ">
+          Quero uma tela na minha loja
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
         </a>
-        <a class="btn btn-ghost" data-wa="Oi! Tenho um comércio em Itapetininga e quero uma tela no meu ponto.">
-          Quero uma tela no meu ponto
-        </a>
+        <a class="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
       </div>
-      <p class="hero-note">Resposta direta no WhatsApp, com o Julio. Sem formulário, sem robô, sem cadastro.</p>
+      <p class="hero-note">Quem responde no WhatsApp sou eu. Sem formulário, sem robô, sem cadastro.</p>
     </div>
 
     <!-- ---- MOCKUP DE TELA ---- -->
     <div class="hero-screen">
-      <div class="tv" id="tv" role="img" aria-label="Simulação de uma tela do PontoTela alternando anúncios">
+      <div class="tv" id="tv" role="img" aria-label="Simulação de uma tela do PontoTela alternando o conteúdo do próprio comércio">
         <div class="tv-bezel">
           <div class="tv-screen">
 
             <div class="slide is-active" data-slide style="--slide-bg:#12321f; --slide-fg:#f6f4ee; --slide-accent:#f0a03c">
-              <div class="slide-kicker">Autopeças</div>
-              <div class="slide-title">Freio + alinhamento<br>no mesmo dia</div>
-              <div class="slide-foot"><span>Av. Central, 000</span><span class="slide-tag">(15) 9 0000-0000</span></div>
+              <div class="slide-kicker">Sua tabela</div>
+              <div class="slide-title">Corte · Barba<br>Sobrancelha</div>
+              <div class="slide-foot"><span>Preços atualizados</span><span class="slide-tag">Peça no balcão</span></div>
             </div>
 
             <div class="slide" data-slide style="--slide-bg:#f6f4ee; --slide-fg:#101511; --slide-accent:#e9622b">
-              <div class="slide-kicker">Conteúdo da casa</div>
+              <div class="slide-kicker">Seu horário</div>
               <div class="slide-title">Terça a sábado<br>9h às 19h</div>
-              <div class="slide-foot"><span>Corte · Barba · Sobrancelha</span><span class="slide-tag">Agende no balcão</span></div>
+              <div class="slide-foot"><span>Domingo e segunda fechado</span><span class="slide-tag">Agende antes</span></div>
             </div>
 
             <div class="slide" data-slide style="--slide-bg:#e9622b; --slide-fg:#fff8f2; --slide-accent:#101511">
-              <div class="slide-kicker">Pet shop</div>
-              <div class="slide-title">Banho e tosa<br>com hora marcada</div>
-              <div class="slide-foot"><span>Leva e traz no bairro</span><span class="slide-tag">Chame no zap</span></div>
+              <div class="slide-kicker">Sua promoção</div>
+              <div class="slide-title">Combo do mês<br>corte + barba</div>
+              <div class="slide-foot"><span>Só nesta semana</span><span class="slide-tag">@seuinstagram</span></div>
             </div>
 
             <div class="slide" data-slide style="--slide-bg:#101511; --slide-fg:#f6f4ee; --slide-accent:#1f9d5a">
@@ -108,7 +101,7 @@
         </div>
         <div class="tv-stand" aria-hidden="true"></div>
       </div>
-      <p class="tv-caption"><span class="live"></span> Simulação do player real rodando em loop</p>
+      <p class="tv-caption"><span class="live"></span> Simulação do que passa na tela</p>
     </div>
 
   </div>
@@ -125,311 +118,211 @@
   </div>
 </div>
 
-<!-- ============ COMO FUNCIONA ============ -->
+<!-- ============ A IDEIA ============ -->
+<section class="section section-pontos" id="a-ideia">
+  <div class="wrap espera-grid">
+
+    <div class="espera-copy">
+      <p class="eyebrow" data-reveal><span class="dot"></span> A ideia</p>
+      <h2 class="h2" data-reveal>O cliente já está dentro da sua loja. A tela só aproveita o tempo que ele passa esperando.</h2>
+      <p class="body-lg" data-reveal>
+        Todo comércio de bairro tem esse tempo morto: a pessoa senta, pega o celular
+        e some por meia hora. Ela já confia em você — só não sabe metade do que você vende.
+      </p>
+      <p class="body-lg" data-reveal>
+        A tela preenche esse tempo sem você precisar falar nada. Fica repetindo seus serviços,
+        seu horário e sua promoção pra quem está a três metros do balcão.
+      </p>
+      <p class="fineprint" data-reveal>
+        A rede está começando agora em Itapetininga. Quem entra primeiro pega mais atenção
+        nossa — e escolhe onde a tela vai ficar.
+      </p>
+    </div>
+
+    <figure class="espera-card" data-reveal>
+      <figcaption class="espera-head">
+        <p class="espera-label">Uma espera comum na sua loja</p>
+        <span class="espera-total">31<small>min</small></span>
+      </figcaption>
+
+      <ol class="rail">
+        <li class="rail-item">
+          <span class="rail-mark" aria-hidden="true"></span>
+          <span class="rail-t">00:00</span>
+          <p class="rail-txt">Senta no banco, pega o celular e some no feed.</p>
+        </li>
+        <li class="rail-item is-screen">
+          <span class="rail-mark" aria-hidden="true"></span>
+          <span class="rail-t">03:20</span>
+          <p class="rail-txt">A tela mostra sua tabela. Ele vê que você <b>também faz sobrancelha</b>.</p>
+        </li>
+        <li class="rail-item is-screen">
+          <span class="rail-mark" aria-hidden="true"></span>
+          <span class="rail-t">09:40</span>
+          <p class="rail-txt">Passa seu horário novo de sábado. Ele guarda isso.</p>
+        </li>
+        <li class="rail-item is-screen">
+          <span class="rail-mark" aria-hidden="true"></span>
+          <span class="rail-t">17:10</span>
+          <p class="rail-txt">Volta o combo do mês. <b>Segunda vez</b> que ele vê o preço.</p>
+        </li>
+        <li class="rail-item is-screen">
+          <span class="rail-mark" aria-hidden="true"></span>
+          <span class="rail-t">24:30</span>
+          <p class="rail-txt">Aparece seu Instagram. Ele te segue dali mesmo.</p>
+        </li>
+        <li class="rail-item is-end">
+          <span class="rail-mark" aria-hidden="true"></span>
+          <span class="rail-t">31:00</span>
+          <p class="rail-txt">Chega a vez dele — e ele já senta pedindo a barba também.</p>
+        </li>
+      </ol>
+
+      <p class="espera-foot">Sem a tela, esses 31 minutos são do feed de outra pessoa.</p>
+    </figure>
+
+  </div>
+</section>
+
+<!-- ============ NOSSO PROCESSO ============ -->
 <section class="section" id="como-funciona">
   <div class="wrap wrap-narrow">
-    <p class="eyebrow" data-reveal><span class="dot"></span> Como funciona</p>
-    <h2 class="h2" data-reveal>Quatro passos. Nenhum deles é você aprender a mexer em gerenciador de anúncios.</h2>
+    <p class="eyebrow" data-reveal><span class="dot"></span> Nosso processo</p>
+    <h2 class="h2" data-reveal>Quatro passos, e nenhum deles dá trabalho pra você.</h2>
+    <p class="body-lg" data-reveal>
+      Do primeiro oi no zap até a tela ligada, é assim que a gente faz.
+      Nada é instalado antes de você ver como vai ficar.
+    </p>
   </div>
 
   <ol class="steps wrap">
     <li class="step" data-reveal>
       <span class="step-num">01</span>
-      <h3>A gente instala a tela no comércio</h3>
-      <p>TV ligada direto, sem controle, sem menu, sem tela azul. Liga na tomada e já entra no ar sozinha.</p>
+      <h3>A gente conversa e passa aí</h3>
+      <p>Você chama no zap e a gente marca de ir ver o ponto. Olhamos a parede, a tomada e o lugar onde o pessoal senta pra esperar. Sem compromisso.</p>
     </li>
     <li class="step" data-reveal>
       <span class="step-num">02</span>
-      <h3>Você manda o que quer anunciar</h3>
-      <p>Pode ser uma foto do produto, um print, um áudio explicando. A arte a gente monta — não precisa de designer.</p>
+      <h3>Montamos o que vai na tela</h3>
+      <p>Manda uma foto, um print ou um áudio dizendo o que você quer mostrar. A arte é por nossa conta e volta pra você aprovar antes de subir.</p>
     </li>
     <li class="step" data-reveal>
       <span class="step-num">03</span>
-      <h3>Seu anúncio entra na rotação</h3>
-      <p>Ele volta a cada poucos minutos, o dia inteiro, intercalado com o conteúdo da casa e informação útil.</p>
+      <h3>Instalamos e deixamos rodando</h3>
+      <p>Levamos a tela, o suporte e o aparelho. Liga na tomada e entra no ar sozinha — sem controle, sem menu, sem tela azul.</p>
     </li>
     <li class="step" data-reveal>
       <span class="step-num">04</span>
-      <h3>Você recebe o relatório de exibições</h3>
-      <p>Quantas vezes rodou, em qual tela, em que período. O que rodou está registrado no sistema — não é estimativa.</p>
+      <h3>Depois é só ir pedindo</h3>
+      <p>Mudou o preço, entrou promoção, virou o mês? Manda no zap que a gente troca daqui. Se o aparelho der problema, o conserto é nosso.</p>
     </li>
   </ol>
 </section>
 
-<!-- ============ ONDE AS TELAS ESTÃO ============ -->
-<section class="section section-pontos" id="pontos">
-  <div class="wrap pontos-head">
-    <div>
-      <p class="eyebrow" data-reveal><span class="dot"></span> Onde as telas estão</p>
-      <h2 class="h2" data-reveal>Começamos pelas barbearias. É onde o cliente fica mais tempo parado.</h2>
-      <p class="body-lg" data-reveal>
-        Uma pessoa esperando a vez numa barbearia fica ali de 15 a 40 minutos, sem fila de banco, sem pressa,
-        olhando pra frente. É o melhor lugar que existe em Itapetininga pra uma mensagem de comércio local
-        ser lida com calma — e não deslizada com o polegar em meio segundo.
-      </p>
-    </div>
-    <div class="stats" data-reveal>
-      <div class="stat">
-        <span class="stat-num" data-count="telas">—</span>
-        <span class="stat-label">telas ativas</span>
-      </div>
-      <div class="stat">
-        <span class="stat-num" data-count="pontos">—</span>
-        <span class="stat-label">pontos comerciais</span>
-      </div>
-      <div class="stat">
-        <span class="stat-num" data-count="horas">—</span>
-        <span class="stat-label">horas de tela por semana</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="wrap gallery">
-    <figure class="shot shot-lg" data-reveal>
-      <div class="shot-ph"><span>Foto real da tela instalada</span><small>public/site/img/ponto-01.jpg</small></div>
-      <figcaption><strong class="fill">[[PREENCHER: nome da barbearia 1]]</strong> — <span class="fill">[[PREENCHER: bairro]]</span></figcaption>
-    </figure>
-    <figure class="shot" data-reveal>
-      <div class="shot-ph"><span>Foto real da tela instalada</span><small>public/site/img/ponto-02.jpg</small></div>
-      <figcaption><strong class="fill">[[PREENCHER: nome da barbearia 2]]</strong> — <span class="fill">[[PREENCHER: bairro]]</span></figcaption>
-    </figure>
-    <figure class="shot" data-reveal>
-      <div class="shot-ph"><span>Foto real da tela instalada</span><small>public/site/img/ponto-03.jpg</small></div>
-      <figcaption><strong class="fill">[[PREENCHER: nome da barbearia 3]]</strong> — <span class="fill">[[PREENCHER: bairro]]</span></figcaption>
-    </figure>
-  </div>
-  <p class="wrap fineprint">Próximas categorias na fila: academia, pet shop, estúdio de tatuagem e autopeças.</p>
-</section>
-
-<!-- ============ COMPARATIVO ============ -->
-<section class="section" id="comparativo">
-  <div class="wrap wrap-narrow">
-    <p class="eyebrow" data-reveal><span class="dot"></span> PontoTela x o resto</p>
-    <h2 class="h2" data-reveal>Você não está competindo com a Nike. Está competindo com a loja da esquina.</h2>
-    <p class="body-lg" data-reveal>
-      As mídias abaixo funcionam — só que foram feitas pra outro tamanho de problema.
-      Pra comércio de bairro, o que decide não é alcance de milhão: é aparecer perto, aparecer sempre e não dar trabalho.
-    </p>
-  </div>
-
-  <div class="wrap table-scroll" data-reveal>
-    <table class="cmp">
-      <thead>
-        <tr>
-          <th scope="col"><span class="sr-only">Critério</span></th>
-          <th scope="col" class="is-us">PontoTela</th>
-          <th scope="col">Instagram / Meta Ads</th>
-          <th scope="col">Outdoor</th>
-          <th scope="col">Rádio local</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row">Quanto custa entrar</th>
-          <td class="is-us"><span class="fill">[[PREENCHER: valor do pacote de entrada]]</span></td>
-          <td>Baixo pra testar, alto pra manter volume</td>
-          <td>Aluguel mensal cheio, mesmo sem retorno</td>
-          <td>Pacote de inserções fechado</td>
-        </tr>
-        <tr>
-          <th scope="row">Quem vê</th>
-          <td class="is-us">Gente de Itapetininga, dentro de um comércio, parada</td>
-          <td>Quem o algoritmo escolher, em qualquer lugar</td>
-          <td>Quem passa de carro, em movimento</td>
-          <td>Quem está com o rádio ligado naquele minuto</td>
-        </tr>
-        <tr>
-          <th scope="row">Segmentação</th>
-          <td class="is-us">Por ponto e por categoria de público</td>
-          <td>Muito boa, se você souber configurar</td>
-          <td>Nenhuma além do trecho da via</td>
-          <td>Por horário de programação</td>
-        </tr>
-        <tr>
-          <th scope="row">Trabalho seu</th>
-          <td class="is-us">Mandar a ideia no zap. A arte é por nossa conta</td>
-          <td>Criar arte, subir campanha, acompanhar, otimizar</td>
-          <td>Contratar arte e impressão</td>
-          <td>Gravar ou aprovar o spot</td>
-        </tr>
-        <tr>
-          <th scope="row">Tempo de veiculação</th>
-          <td class="is-us">Rotação o dia inteiro, todo dia do contrato</td>
-          <td>Enquanto tiver verba no ar</td>
-          <td>Quinzena ou mês fechado</td>
-          <td>Segundos por inserção</td>
-        </tr>
-        <tr>
-          <th scope="row">Prova de que rodou</th>
-          <td class="is-us">Relatório de exibições por anunciante</td>
-          <td>Painel completo da plataforma</td>
-          <td>Foto da placa</td>
-          <td>Confiança no mapa de veiculação</td>
-        </tr>
-        <tr>
-          <th scope="row">Concorrente do lado</th>
-          <td class="is-us">Bloqueado por exclusividade de categoria</td>
-          <td>Aparece no mesmo feed que você</td>
-          <td>Pode alugar a placa vizinha</td>
-          <td>Pode comprar o bloco seguinte</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<!-- ============ EXCLUSIVIDADE ============ -->
-<section class="section section-excl" id="exclusividade">
+<!-- ============ O QUE RODA NA TELA ============ -->
+<section class="section section-excl" id="na-tela">
   <div class="wrap excl-grid">
     <div class="excl-copy" data-reveal>
-      <p class="eyebrow eyebrow-light"><span class="dot"></span> Exclusividade por categoria</p>
-      <h2 class="h2 h2-light">Seu concorrente direto não entra na mesma tela que você.</h2>
+      <p class="eyebrow eyebrow-light"><span class="dot"></span> O que roda na tela</p>
+      <h2 class="h2 h2-light">Sua loja não vira outdoor dos outros.</h2>
       <p>
-        Cada tela tem um número limitado de vagas, e cada vaga pertence a uma categoria.
-        Se a autopeças da sua rua fechou a vaga de autopeças naquele ponto, acabou:
-        nenhuma outra autopeças entra ali enquanto o contrato estiver de pé.
+        Essa é a primeira pergunta que todo dono faz, e a resposta é curta: quase tudo que
+        passa ali é <em>seu</em>. Seus serviços, seus preços, seu horário, sua promoção.
+        No meio entra informação útil pra quem espera — hora, tempo, recado da casa.
       </p>
       <p>
-        É o oposto do feed, onde você paga pra aparecer e o cara do lado paga pra aparecer logo depois de você.
-        Aqui, quem chega primeiro tira a categoria do mercado naquele ponto.
+        Mais pra frente, quando a rede estiver de pé, um comércio parceiro da região pode entrar
+        na rotação. Nunca um concorrente seu, nunca no lugar do seu conteúdo, e só se você deixar.
       </p>
-      <a class="btn btn-primary" data-wa="Oi! Quero saber se a vaga da minha categoria ainda está livre. Meu ramo é: ">
-        Ver se minha categoria está livre
+      <a class="btn btn-primary" data-wa="Oi! Queria saber o que passaria na tela da minha loja. Meu negócio é: ">
+        Quero ver como ficaria na minha loja
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
       </a>
     </div>
 
-    <ul class="slots" data-reveal aria-label="Exemplo de ocupação de vagas em uma tela">
-      <li class="slot slot-taken"><span class="slot-cat">Autopeças</span><span class="slot-state">Ocupada</span></li>
-      <li class="slot slot-taken"><span class="slot-cat">Pet shop</span><span class="slot-state">Ocupada</span></li>
-      <li class="slot slot-free"><span class="slot-cat">Lanchonete</span><span class="slot-state">Livre</span></li>
-      <li class="slot slot-free"><span class="slot-cat">Ótica</span><span class="slot-state">Livre</span></li>
-      <li class="slot slot-free"><span class="slot-cat">Academia</span><span class="slot-state">Livre</span></li>
-      <li class="slot-note">Exemplo de como as vagas são organizadas. A ocupação real de cada ponto a gente confere na hora.</li>
+    <ul class="slots" data-reveal aria-label="Exemplo do que ocupa a rotação de uma tela">
+      <li class="slot slot-free"><span class="slot-cat">Seus serviços e preços</span><span class="slot-state">Da casa</span></li>
+      <li class="slot slot-free"><span class="slot-cat">Sua promoção da semana</span><span class="slot-state">Da casa</span></li>
+      <li class="slot slot-free"><span class="slot-cat">Horário e recados</span><span class="slot-state">Da casa</span></li>
+      <li class="slot slot-free"><span class="slot-cat">Seu Instagram e contato</span><span class="slot-state">Da casa</span></li>
+      <li class="slot slot-free"><span class="slot-cat">Hora, tempo e informação útil</span><span class="slot-state">Ambiente</span></li>
+      <li class="slot-note">Exemplo de rotação. O que vai na sua tela a gente monta junto com você, antes de instalar.</li>
     </ul>
   </div>
 </section>
 
-<!-- ============ TRANSPARÊNCIA ============ -->
-<section class="section" id="transparencia">
-  <div class="wrap report-grid">
-    <div class="report-copy">
-      <p class="eyebrow" data-reveal><span class="dot"></span> Prova de entrega</p>
-      <h2 class="h2" data-reveal>"Paguei, mas será que rodou mesmo?"</h2>
-      <p class="body-lg" data-reveal>
-        Essa é a pergunta que todo mundo tem sobre mídia local e quase ninguém responde.
-        O player registra cada exibição no nosso painel. No fim do período você recebe o relatório:
-        quantas vezes seu anúncio entrou, em quais telas e em que dias.
-      </p>
-      <p data-reveal>
-        Não é estimativa de "público estimado". É o log do que a tela realmente tocou.
-        Se o ponto ficou fechado numa segunda, isso aparece no relatório.
-      </p>
-    </div>
-
-    <div class="report" data-reveal>
-      <div class="report-head">
-        <div>
-          <span class="report-label">Relatório de exibições</span>
-          <strong class="report-adv">Autopeças Central</strong>
-        </div>
-        <span class="report-period">01–31 · período fechado</span>
-      </div>
-
-      <div class="report-kpis">
-        <div><span class="kpi-num" data-count="rep1">0</span><span class="kpi-label">exibições</span></div>
-        <div><span class="kpi-num" data-count="rep2">0</span><span class="kpi-label">telas</span></div>
-        <div><span class="kpi-num" data-count="rep3">0</span><span class="kpi-label">dias no ar</span></div>
-      </div>
-
-      <div class="report-chart" aria-hidden="true">
-        <i style="--h:52%"></i><i style="--h:68%"></i><i style="--h:61%"></i><i style="--h:80%"></i>
-        <i style="--h:74%"></i><i style="--h:95%"></i><i style="--h:38%"></i><i style="--h:57%"></i>
-        <i style="--h:70%"></i><i style="--h:66%"></i><i style="--h:84%"></i><i style="--h:49%"></i>
-        <i style="--h:77%"></i><i style="--h:90%"></i>
-      </div>
-
-      <ul class="report-rows">
-        <li><span>Barbearia · Centro</span><b>1.842</b></li>
-        <li><span>Barbearia · Vila Rica</span><b>1.611</b></li>
-        <li><span>Barbearia · Jd. Fogaça</span><b>1.298</b></li>
-      </ul>
-
-      <p class="report-foot">Exemplo ilustrativo do formato do relatório. Os números do seu contrato saem do painel.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ DONOS DE PONTO ============ -->
-<section class="section section-owner" id="pontos-comerciais">
-  <div class="wrap owner-grid">
-    <div class="owner-copy" data-reveal>
-      <p class="eyebrow eyebrow-light"><span class="dot"></span> Pra quem tem o comércio</p>
-      <h2 class="h2 h2-light">A tela é sua. O custo é nosso.</h2>
-      <p>
-        Você não paga instalação, não paga mensalidade, não paga internet da tela e não assina nada
-        que te obrigue a ficar. A gente monta, configura e mantém funcionando. Se um dia você quiser tirar, tira.
-      </p>
-      <p class="owner-obj">
-        <strong>E antes que você pergunte:</strong> não, sua barbearia não vira outdoor dos outros.
-        Boa parte da rotação é <em>seu</em> conteúdo — sua promoção, seu horário, seus serviços, seu Instagram —
-        intercalado com informação útil pra quem está esperando. O anúncio de terceiro entra no meio, não no lugar.
-      </p>
-      <ul class="owner-list">
-        <li><b>Zero custo</b> — instalação, manutenção e conteúdo por nossa conta</li>
-        <li><b>Seu espaço garantido</b> — a casa sempre tem lugar na rotação</li>
-        <li><b>Sem concorrente seu na tela</b> — outra barbearia não anuncia dentro da sua</li>
-        <li><b>Sem fidelidade</b> — se não gostar, a gente desinstala</li>
-      </ul>
-      <a class="btn btn-primary" data-wa="Oi! Tenho um comércio em Itapetininga e queria entender como funciona receber uma tela.">
-        Quero uma tela no meu ponto
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
-      </a>
-    </div>
-    <div class="owner-shot" data-reveal>
-      <div class="shot-ph shot-ph-dark">
-        <span>Foto do ambiente real</span><small>public/site/img/ambiente.jpg</small>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ PLANOS ============ -->
-<section class="section" id="planos">
+<!-- ============ O QUE CADA UM COLOCA ============ -->
+<section class="section" id="combinado">
   <div class="wrap wrap-narrow">
-    <p class="eyebrow" data-reveal><span class="dot"></span> Planos</p>
-    <h2 class="h2" data-reveal>Um pacote de entrada, feito pra caber no caixa de comércio pequeno.</h2>
+    <p class="eyebrow" data-reveal><span class="dot"></span> O combinado</p>
+    <h2 class="h2" data-reveal>Sem letra miúda: é isso que cada lado põe.</h2>
   </div>
 
   <div class="wrap plans">
     <article class="plan plan-featured" data-reveal>
-      <span class="plan-flag">Pacote de entrada</span>
-      <h3 class="plan-name">3 barbearias</h3>
-      <p class="plan-price"><span class="fill">[[PREENCHER: preço do pacote 3 barbearias]]</span></p>
+      <span class="plan-flag">Por nossa conta</span>
+      <h3 class="plan-name">O que a gente leva</h3>
       <ul class="plan-list">
-        <li>Seu anúncio nas 3 telas ativas</li>
-        <li>Rotação o dia inteiro, todos os dias</li>
-        <li>Exclusividade da sua categoria nos 3 pontos</li>
-        <li>Criação da arte incluída</li>
-        <li>Relatório de exibições no fim do período</li>
-        <li>Troca de arte durante o contrato: <span class="fill">[[PREENCHER: quantas trocas inclusas]]</span></li>
+        <li>A tela e o suporte de parede</li>
+        <li>O aparelho que toca o conteúdo</li>
+        <li>A instalação, no dia que der certo pra você</li>
+        <li>As artes da sua casa, todas elas</li>
+        <li>As trocas de conteúdo, sempre que você pedir</li>
+        <li>Manutenção e troca do aparelho se der defeito</li>
       </ul>
-      <a class="btn btn-primary btn-block" data-wa="Oi! Quero o pacote de entrada das 3 barbearias. Meu ramo é: ">Quero esse pacote</a>
+      <a class="btn btn-primary btn-block" data-wa="Oi! Li o combinado no site e queria uma tela na minha loja. Meu negócio é: ">Quero começar por aqui</a>
     </article>
 
     <article class="plan" data-reveal>
-      <span class="plan-flag plan-flag-muted">Sob medida</span>
-      <h3 class="plan-name">Rede inteira / campanha</h3>
-      <p class="plan-price plan-price-alt">Sob consulta</p>
+      <span class="plan-flag plan-flag-muted">Da sua parte</span>
+      <h3 class="plan-name">O que a gente pede</h3>
       <ul class="plan-list">
-        <li>Todas as telas da rede, incluindo novas categorias</li>
-        <li>Mais tempo de rotação por hora</li>
-        <li>Campanhas com data marcada (Dia das Mães, Black Friday, aniversário da loja)</li>
-        <li>Peças diferentes por ponto</li>
+        <li>Uma parede boa, onde quem espera consiga ver</li>
+        <li>Uma tomada por perto</li>
+        <li>Deixar a tela ligada no horário da loja</li>
+        <li>Avisar no zap quando mudar preço ou promoção</li>
+        <li>Falar com a gente se algo parar de funcionar</li>
       </ul>
-      <a class="btn btn-outline btn-block" data-wa="Oi! Queria montar uma campanha maior no PontoTela.">Falar sobre campanha</a>
-      <p class="plan-note">Preço fechado depois de conversar — depende de quantos pontos e de quanto tempo no ar.</p>
+      <p class="plan-note">É só isso. Não pedimos exclusividade, não pedimos comissão e não tem nada assinado que te prenda.</p>
     </article>
+  </div>
+</section>
+
+<!-- ============ SEM CUSTO ============ -->
+<section class="section section-owner" id="sem-custo">
+  <div class="wrap owner-grid">
+    <div class="owner-copy" data-reveal>
+      <p class="eyebrow eyebrow-light"><span class="dot"></span> A parte do dinheiro</p>
+      <h2 class="h2 h2-light">A tela é sua pra usar. O custo é todo nosso.</h2>
+      <p>
+        Não tem taxa de instalação, não tem mensalidade e não tem aluguel de equipamento.
+        Boleto nosso você não vai receber — nunca.
+      </p>
+      <p class="owner-obj">
+        <strong>E de onde sai o dinheiro, então?</strong> Do outro lado. Quem anuncia na rede é
+        quem paga a conta. Enquanto a rede está sendo montada, seu ponto entra sem custo
+        e quem aparece na tela é você.
+      </p>
+      <ul class="owner-list">
+        <li><b>Zero custo</b> — aparelho, instalação, arte e manutenção por nossa conta</li>
+        <li><b>Sem fidelidade</b> — se um dia você não quiser mais, a gente desinstala e leva</li>
+        <li><b>Sem concorrente seu na tela</b> — outro do seu ramo não aparece dentro da sua loja</li>
+        <li><b>Sem trabalho</b> — você não mexe em nada, é só deixar ligada</li>
+      </ul>
+      <a class="btn btn-primary" data-wa="Oi! Queria uma tela sem custo na minha loja em Itapetininga. Meu negócio é: ">
+        Chamar no WhatsApp
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+    <div class="owner-shot" data-reveal>
+      <ul class="slots" aria-label="Resumo do custo para o estabelecimento">
+        <li class="slot slot-free"><span class="slot-cat">Instalação</span><span class="slot-state">R$ 0</span></li>
+        <li class="slot slot-free"><span class="slot-cat">Equipamento</span><span class="slot-state">R$ 0</span></li>
+        <li class="slot slot-free"><span class="slot-cat">Mensalidade</span><span class="slot-state">R$ 0</span></li>
+        <li class="slot slot-free"><span class="slot-cat">Criação das artes</span><span class="slot-state">R$ 0</span></li>
+        <li class="slot slot-free"><span class="slot-cat">Manutenção</span><span class="slot-state">R$ 0</span></li>
+      </ul>
+    </div>
   </div>
 </section>
 
@@ -437,43 +330,43 @@
 <section class="section section-faq" id="faq">
   <div class="wrap faq-grid">
     <div class="faq-side">
-      <p class="eyebrow" data-reveal><span class="dot"></span> Perguntas que todo mundo faz</p>
+      <p class="eyebrow" data-reveal><span class="dot"></span> Perguntas que todo dono faz</p>
       <h2 class="h2" data-reveal>Antes de você me mandar mensagem perguntando.</h2>
       <p data-reveal>Se ficou alguma dúvida que não está aqui, é só chamar. Quem responde sou eu mesmo.</p>
     </div>
 
     <div class="faq-list" data-reveal>
       <details class="faq-item">
-        <summary>Preciso assinar contrato longo?</summary>
-        <div><p>Não. O contrato é por período fechado e curto — <span class="fill">[[PREENCHER: duração mínima, ex. 30 dias]]</span> — justamente pra você testar sem se amarrar. Renova se gostar.</p></div>
+        <summary>Qual é a pegadinha? Ninguém dá uma tela de graça.</summary>
+        <div><p>Não tem pegadinha, e dá pra explicar em uma linha: quem paga a conta é o anunciante da rede, não você. Pra rede existir a gente precisa de pontos bons, e o seu comércio é o ponto. Você não assina nada que te obrigue a ficar e pode pedir pra tirar a tela quando quiser.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Quanto tempo meu anúncio fica no ar?</summary>
-        <div><p>Ele entra na rotação e volta a cada poucos minutos, durante todo o horário em que o comércio está aberto. Não é uma inserção por hora: é presença o dia inteiro.</p></div>
+        <summary>Vou pagar a energia da tela?</summary>
+        <div><p>A tela fica na sua tomada, então o consumo é o da sua loja. É pouco: parecido com uma TV comum ligada no horário comercial. Fora isso, nada é seu.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Como eu sei que rodou mesmo?</summary>
-        <div><p>O player registra cada exibição no painel. No fim do período você recebe o relatório com o número de exibições por tela e por dia. Se a tela ficou fora do ar, isso aparece.</p></div>
+        <summary>Minha loja vai virar propaganda dos outros?</summary>
+        <div><p>Não. Quase tudo que passa é conteúdo seu. Anúncio de parceiro entra no meio, nunca no lugar do seu, nunca de um concorrente — e só com o seu ok.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Preciso saber editar a arte?</summary>
-        <div><p>Não. Manda uma foto, um print, ou explica por áudio o que você quer anunciar. A arte a gente monta e te manda pra aprovar antes de subir.</p></div>
+        <summary>Preciso saber mexer em alguma coisa?</summary>
+        <div><p>Não. A tela liga e roda sozinha. Quando quiser mudar algo, é só mandar mensagem: a gente altera daqui, você nem chega perto do aparelho.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Meu concorrente pode anunciar na mesma tela?</summary>
-        <div><p>Não enquanto seu contrato estiver ativo. A vaga da sua categoria fica bloqueada naquele ponto.</p></div>
+        <summary>Preciso assinar contrato?</summary>
+        <div><p>A gente deixa no papel só o que protege os dois lados: a tela continua sendo nossa e você pode pedir a retirada quando quiser. Não tem prazo mínimo, não tem multa, não tem fidelidade.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Posso trocar a arte no meio do contrato?</summary>
-        <div><p>Pode. Promoção de fim de semana, mudança de preço, campanha de data: manda que a gente troca. O limite de trocas inclusas está no pacote.</p></div>
+        <summary>E se a tela quebrar ou parar?</summary>
+        <div><p>Você avisa e a gente resolve. Conserto e troca do aparelho são por nossa conta.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Sou dono do comércio. Tem alguma pegadinha?</summary>
-        <div><p>Não tem custo, não tem fidelidade e não tem comissão sua envolvida. A gente ganha do anunciante, você ganha a tela e o espaço pro seu próprio conteúdo.</p></div>
+        <summary>Quanto tempo demora pra instalar?</summary>
+        <div><p>Depois da visita e do ok nas artes, a instalação leva pouco mais de uma hora. A gente marca no horário que atrapalhar menos o seu movimento.</p></div>
       </details>
       <details class="faq-item">
         <summary>Atendem fora de Itapetininga?</summary>
-        <div><p>Por enquanto a rede é toda em Itapetininga. Cidade vizinha, chama pra conversar — depende de ter ponto por lá.</p></div>
+        <div><p>A gente está começando por Itapetininga. Se você é de cidade vizinha, chama do mesmo jeito — a gente conversa e vê o que dá pra fazer.</p></div>
       </details>
     </div>
   </div>
@@ -482,18 +375,15 @@
 <!-- ============ CTA FINAL ============ -->
 <section class="cta-final" id="contato">
   <div class="wrap cta-inner">
-    <h2 data-reveal>Chama no zap e me fala qual é o seu ramo.<br>Eu te digo em cinco minutos se tem vaga.</h2>
+    <h2 data-reveal>Me manda uma mensagem dizendo qual é o seu comércio.<br>A gente marca uma visita — não custa nada e não compromete nada.</h2>
     <div class="cta-actions" data-reveal>
-      <a class="btn btn-wa btn-lg" data-wa="Oi! Quero anunciar no PontoTela. Meu comércio é: ">
+      <a class="btn btn-wa btn-lg" data-wa="Oi! Tenho um comércio em Itapetininga e queria uma tela na minha loja. Meu negócio é: ">
         <svg class="wa-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.6 2 2.2 6.4 2.2 11.84c0 1.94.5 3.76 1.4 5.34L2 22l4.96-1.56a9.8 9.8 0 0 0 5.08 1.4h.01c5.43 0 9.83-4.4 9.83-9.84C21.88 6.4 17.47 2 12.04 2Zm5.74 14.02c-.24.68-1.4 1.3-1.94 1.34-.5.05-.98.24-3.3-.7-2.78-1.1-4.55-3.94-4.68-4.12-.14-.18-1.12-1.5-1.12-2.86 0-1.36.7-2.02.96-2.3.24-.26.53-.32.7-.32.18 0 .36 0 .5.01.16.01.38-.06.6.46.24.56.8 1.94.87 2.08.07.14.12.3.02.48-.1.18-.14.3-.28.46-.14.16-.3.36-.42.48-.14.14-.29.3-.12.58.16.28.73 1.2 1.56 1.95 1.07.95 1.98 1.25 2.26 1.39.28.14.44.12.6-.07.18-.2.7-.8.88-1.08.18-.28.36-.23.6-.14.24.09 1.6.76 1.87.9.28.13.46.2.53.31.07.12.07.66-.17 1.34Z"/></svg>
         Falar no WhatsApp agora
       </a>
-      <a class="btn btn-outline-light btn-lg" data-wa="Oi! Tenho um comércio em Itapetininga e quero uma tela no meu ponto.">
-        Tenho um ponto comercial
-      </a>
     </div>
     <p class="cta-note" data-reveal>
-      WhatsApp comercial: <strong class="fill">[[PREENCHER: número do WhatsApp comercial]]</strong> · atendimento em horário comercial
+      WhatsApp: <strong>(15) 99627-3799</strong> · atendimento em horário comercial
     </p>
   </div>
 </section>
@@ -514,21 +404,19 @@
         </svg>
         <span class="brand-name">Ponto<span>Tela</span></span>
       </a>
-      <p class="footer-desc">Rede de mídia indoor em comércios de Itapetininga/SP.</p>
+      <p class="footer-desc">Telas em comércios de Itapetininga/SP, sem custo pro estabelecimento.</p>
     </div>
     <div class="footer-col">
       <h4>Navegar</h4>
-      <a href="#como-funciona">Como funciona</a>
-      <a href="#pontos">Onde estão as telas</a>
-      <a href="#exclusividade">Exclusividade</a>
-      <a href="#planos">Planos</a>
+      <a href="#a-ideia">A ideia</a>
+      <a href="#como-funciona">Nosso processo</a>
+      <a href="#na-tela">O que roda na tela</a>
+      <a href="#combinado">O combinado</a>
       <a href="#faq">Dúvidas</a>
     </div>
     <div class="footer-col">
       <h4>Contato</h4>
-      <a data-wa="Oi! Vi o site do PontoTela.">WhatsApp</a>
-      <span class="fill">[[PREENCHER: e-mail comercial]]</span>
-      <span class="fill">[[PREENCHER: @instagram, se houver]]</span>
+      <a data-wa="Oi! Vi o site do PontoTela e queria uma tela na minha loja.">WhatsApp (15) 99627-3799</a>
     </div>
     <div class="footer-col">
       <h4>Empresa</h4>
@@ -543,7 +431,7 @@
   </div>
 </footer>
 
-<a class="wa-float" data-wa="Oi! Vi o site do PontoTela e quero saber mais." aria-label="Falar no WhatsApp">
+<a class="wa-float" data-wa="Oi! Tenho um comércio em Itapetininga e queria uma tela na minha loja." aria-label="Falar no WhatsApp">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.6 2 2.2 6.4 2.2 11.84c0 1.94.5 3.76 1.4 5.34L2 22l4.96-1.56a9.8 9.8 0 0 0 5.08 1.4h.01c5.43 0 9.83-4.4 9.83-9.84C21.88 6.4 17.47 2 12.04 2Zm5.74 14.02c-.24.68-1.4 1.3-1.94 1.34-.5.05-.98.24-3.3-.7-2.78-1.1-4.55-3.94-4.68-4.12-.14-.18-1.12-1.5-1.12-2.86 0-1.36.7-2.02.96-2.3.24-.26.53-.32.7-.32.18 0 .36 0 .5.01.16.01.38-.06.6.46.24.56.8 1.94.87 2.08.07.14.12.3.02.48-.1.18-.14.3-.28.46-.14.16-.3.36-.42.48-.14.14-.29.3-.12.58.16.28.73 1.2 1.56 1.95 1.07.95 1.98 1.25 2.26 1.39.28.14.44.12.6-.07.18-.2.7-.8.88-1.08.18-.28.36-.23.6-.14.24.09 1.6.76 1.87.9.28.13.46.2.53.31.07.12.07.66-.17 1.34Z"/></svg>
 </a>
 
