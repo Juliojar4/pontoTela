@@ -225,11 +225,45 @@
     });
   }
 
+  // ---------- tela cheia ----------
+  // Nenhuma pagina consegue esconder a barra de endereco do navegador por conta propria.
+  // O que da pra fazer e (1) apontar um manifest com display:fullscreen, pra quando a tela
+  // for adicionada a tela inicial do Android, e (2) pedir tela cheia no primeiro toque.
+  // No Fully Kiosk nada disso e necessario -- ele ja abre sem barra nenhuma.
+  function useManifest() {
+    var link = document.getElementById('manifest');
+    if (link && /^\d+$/.test(screenKey)) link.href = '/' + screenKey + '/manifest.webmanifest';
+  }
+
+  function goFullscreen() {
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    var el = document.documentElement;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen ||
+              el.webkitRequestFullScreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (!req) return;
+    try {
+      var r = req.call(el);
+      if (r && r['catch']) r['catch'](function () { /* precisa de gesto do usuario */ });
+    } catch (e) { /* navegador sem suporte */ }
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        var q = screen.orientation.lock('landscape');
+        if (q && q['catch']) q['catch'](function () {});
+      }
+    } catch (e) { /* TV box costuma nao permitir travar orientacao */ }
+  }
+
+  // Continua escutando depois do primeiro toque: se alguem sair da tela cheia, o proximo
+  // toque coloca de volta.
+  document.addEventListener('click', goFullscreen, false);
+  document.addEventListener('touchend', goFullscreen, false);
+
   // ---------- inicio ----------
   if (!screenKey) {
     message('Abra esta tela pelo link do painel (ex: /1)');
     return;
   }
+  useManifest();
   fetchPlaylist(playNext);
   setInterval(function () { fetchPlaylist(); }, POLL_MS);
   heartbeat();

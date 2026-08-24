@@ -5,7 +5,14 @@
     <title>Player</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <!-- Instalado pela tela inicial do Android, abre sem barra de endereco. O href do
+         manifest e preenchido pelo player.js, porque ele muda conforme a tela (/1, /2...). -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link id="manifest" rel="manifest" />
+    <link rel="apple-touch-icon" href="/tv/icons/icon-192x192.png" />
+    <link rel="icon" href="/tv/favicon.ico" sizes="any" />
     <style>
       html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
       body { cursor: none; }

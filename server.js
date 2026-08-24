@@ -158,6 +158,30 @@ app.get('/:code(\\d+)', (req, res) => {
   if (!resolveScreenId(req.params.code)) return res.status(404).send('Tela nao encontrada');
   res.sendFile(PLAYER_HTML);
 });
+// Manifest por tela: com ele o player pode ser instalado na tela inicial do Android
+// (Chrome > menu > "Adicionar a tela inicial") e abrir em tela cheia, sem barra de endereco.
+// Precisa ser gerado por tela porque o start_url tem que apontar pra /1, /2...
+app.get('/:code(\\d+)/manifest.webmanifest', (req, res) => {
+  const code = req.params.code;
+  if (!resolveScreenId(code)) return res.status(404).json({ error: 'tela nao encontrada' });
+  const row = db.prepare('SELECT name FROM screens WHERE code = ?').get(Number(code));
+  res.type('application/manifest+json').json({
+    name: 'Player ' + code + (row?.name ? ' - ' + row.name : ''),
+    short_name: 'Tela ' + code,
+    start_url: '/' + code,
+    scope: '/',
+    display: 'fullscreen',
+    orientation: 'landscape',
+    background_color: '#000000',
+    theme_color: '#000000',
+    icons: [72, 96, 128, 144, 152, 192, 384, 512].map(size => ({
+      src: '/tv/icons/icon-' + size + 'x' + size + '.png',
+      sizes: size + 'x' + size,
+      type: 'image/png',
+      purpose: 'any'
+    }))
+  });
+});
 // Service worker do player Angular antigo: manda desregistrar em vez de 404, senao a
 // versao velha continuaria sendo servida do cache nos aparelhos que ja abriram /player/.
 const UNREGISTER_SW =
