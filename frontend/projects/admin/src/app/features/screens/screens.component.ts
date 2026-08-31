@@ -11,57 +11,103 @@ const REFRESH_MS = 20 * 1000;
   selector: 'app-screens',
   imports: [FormsModule],
   template: `
+    <div class="page-head">
+      <h1>Telas</h1>
+      <span class="sub">{{ onlineCount() }} de {{ screens().length }} no ar</span>
+    </div>
+
     <div class="card">
       <h2>Nova tela (ponto)</h2>
       <div class="row">
         <div><label>Nome</label><input [(ngModel)]="name" placeholder="Academia Fit Center" /></div>
         <div><label>Local</label><input [(ngModel)]="location" placeholder="Recepção" /></div>
+        <div class="tight"><button class="primary inline" (click)="add()">Adicionar tela</button></div>
       </div>
-      <button class="primary" (click)="add()">Adicionar tela</button>
     </div>
-    <div class="card">
-      <h2>Telas cadastradas</h2>
-      @if (screens().length) {
-        <div class="table-wrap">
-          <table>
-            <tr><th>Status</th><th>Nome</th><th>Local</th><th>Link do player</th><th></th></tr>
-            @for (s of screens(); track s.id) {
-              <tr>
-                <td>
-                  <span class="status" [class.online]="isOnline(s)">
-                    <span class="dot"></span>{{ isOnline(s) ? 'online' : lastSeenLabel(s) }}
-                  </span>
-                </td>
-                <td>{{ s.name }}</td>
-                <td class="muted">{{ s.location || '—' }}</td>
-                <td>
-                  <a class="link" [href]="'/' + s.code" target="_blank">{{ shortUrl(s) }} ↗</a>
-                </td>
-                <td>
-                  <button class="ghost" [disabled]="reloading().has(s.id)" (click)="reload(s.id)">
-                    {{ reloading().has(s.id) ? 'enviado ✓' : 'recarregar' }}
-                  </button>
-                  <button class="del" (click)="remove(s.id)">excluir</button>
-                </td>
-              </tr>
-            }
-          </table>
+
+    @if (screens().length) {
+      <div class="grid">
+        @for (s of screens(); track s.id) {
+          <article class="screen">
+            <header>
+              <h3>{{ s.name }}</h3>
+              <span class="status" [class.online]="isOnline(s)">
+                <span class="dot"></span>{{ isOnline(s) ? 'no ar' : lastSeenLabel(s) }}
+              </span>
+            </header>
+            <p class="local">{{ s.location || 'Sem local definido' }}</p>
+
+            <div class="link-box">
+              <span class="url">{{ shortUrl(s) }}</span>
+              <button class="ghost" (click)="copy(s)">
+                {{ copied().has(s.id) ? 'copiado ✓' : 'copiar' }}
+              </button>
+            </div>
+
+            <div class="actions">
+              <a class="ghost as-btn" [href]="'/' + s.code" target="_blank" rel="noopener">abrir player ↗</a>
+              <button class="ghost" [disabled]="reloading().has(s.id)" (click)="reload(s.id)">
+                {{ reloading().has(s.id) ? 'enviado ✓' : 'recarregar' }}
+              </button>
+              <span class="spacer"></span>
+              <button class="del" (click)="remove(s.id)">excluir</button>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="card">
+        <div class="empty">
+          Nenhuma tela ainda.<br />
+          Cada tela vira uma URL que você abre na TV ou no box do ponto comercial.
         </div>
-      } @else {
-        <div class="empty">Nenhuma tela ainda. Cada tela vira uma URL que você abre na TV/box.</div>
-      }
-    </div>
+      </div>
+    }
   `,
   styles: [`
-    .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-    .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
-    .status.online { color: var(--ok); }
-    .status.online .dot { background: var(--ok); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+    .screen {
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+      padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px;
+    }
+    .screen header { display: flex; align-items: flex-start; gap: 12px; }
+    .screen h3 {
+      flex: 1; font-size: 19px; font-variation-settings: 'wdth' 82;
+      overflow-wrap: anywhere;
+    }
+    .local { margin: -6px 0 0; color: var(--muted); font-size: 14px; }
+
+    .status {
+      display: inline-flex; align-items: center; gap: 6px; flex: none;
+      font-family: var(--display); font-variation-settings: 'wdth' 90;
+      font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--muted); white-space: nowrap; padding-top: 3px;
+    }
+    .status .dot { width: 8px; height: 8px; border-radius: 50%; background: #b9c1ba; flex-shrink: 0; }
+    .status.online { color: var(--green-deep); }
+    .status.online .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(31, 157, 90, .18); }
+
+    .link-box {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--paper); border: 1px solid var(--line-soft);
+      border-radius: var(--r); padding: 7px 8px 7px 12px;
+    }
+    .link-box .url {
+      flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px; color: var(--green-deep);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .link-box button { flex: none; }
+
+    .actions { margin-top: auto; padding-top: 4px; }
+    .actions .spacer { flex: 1; }
+    a.as-btn { text-decoration: none; display: inline-flex; align-items: center; }
   `],
 })
 export class ScreensComponent implements OnInit, OnDestroy {
   readonly screens = signal<Screen[]>([]);
   readonly reloading = signal<Set<string>>(new Set());
+  readonly copied = signal<Set<string>>(new Set());
   name = '';
   location = '';
   private refreshTimer?: ReturnType<typeof setInterval>;
@@ -79,6 +125,10 @@ export class ScreensComponent implements OnInit, OnDestroy {
 
   async refresh(): Promise<void> {
     this.screens.set(await this.screensService.list());
+  }
+
+  onlineCount(): number {
+    return this.screens().filter((s) => this.isOnline(s)).length;
   }
 
   // URL curta que vai ser digitada na TV / no Fully Kiosk.
@@ -100,6 +150,18 @@ export class ScreensComponent implements OnInit, OnDestroy {
     return `offline há ${Math.floor(hours / 24)}d`;
   }
 
+  async copy(s: Screen): Promise<void> {
+    const url = location.origin + '/' + s.code;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      this.ui.toast('Não consegui copiar. Copie o link à mão.', 'error');
+      return;
+    }
+    this.flag(this.copied, s.id, 2000);
+    this.ui.toast('Link do player copiado.', 'success');
+  }
+
   async add(): Promise<void> {
     if (!this.name.trim()) { this.ui.toast('Dê um nome à tela', 'error'); return; }
     await this.screensService.create(this.name.trim(), this.location.trim());
@@ -118,10 +180,14 @@ export class ScreensComponent implements OnInit, OnDestroy {
 
   async reload(id: string): Promise<void> {
     await this.screensService.reload(id);
-    this.reloading.update((s) => new Set(s).add(id));
+    this.flag(this.reloading, id, 3000);
     this.ui.toast('Comando de recarregar enviado — a tela atualiza em até 25s.', 'success');
+  }
+
+  private flag(target: typeof this.copied, id: string, ms: number): void {
+    target.update((s) => new Set(s).add(id));
     setTimeout(() => {
-      this.reloading.update((s) => { const next = new Set(s); next.delete(id); return next; });
-    }, 3000);
+      target.update((s) => { const next = new Set(s); next.delete(id); return next; });
+    }, ms);
   }
 }

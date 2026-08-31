@@ -12,17 +12,27 @@ import { MediaPickerComponent } from '../../shared/media-picker.component';
   imports: [FormsModule, MediaPickerComponent],
   template: `
     @if (!screens().length) {
-      <div class="card"><div class="empty">Cadastre uma tela primeiro.</div></div>
-    } @else {
+      <div class="page-head"><h1>Programação</h1></div>
       <div class="card">
-        <h2>Programação da tela</h2>
-        <label>Tela</label>
-        <select [(ngModel)]="screenId" (ngModelChange)="onScreenChange()">
-          @for (s of screens(); track s.id) {
-            <option [value]="s.id">{{ s.name }}</option>
-          }
-        </select>
-        <div class="row" style="margin-top:12px">
+        <div class="empty">Cadastre uma tela primeiro — a programação é sempre de uma tela.</div>
+      </div>
+    } @else {
+      <div class="page-head">
+        <h1>Programação</h1>
+        <span class="spacer"></span>
+        <div class="screen-pick">
+          <label for="tela">Tela</label>
+          <select id="tela" [(ngModel)]="screenId" (ngModelChange)="onScreenChange()">
+            @for (s of screens(); track s.id) {
+              <option [value]="s.id">{{ s.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Adicionar à programação</h2>
+        <div class="row">
           <div>
             <label>Mídia</label>
             <app-media-picker [items]="media()" [value]="mediaId" (valueChange)="mediaId = $event" />
@@ -30,58 +40,75 @@ import { MediaPickerComponent } from '../../shared/media-picker.component';
           <div><label>Duração (s)</label><input type="number" [(ngModel)]="duration" /></div>
           <div><label>Início (opcional)</label><input type="date" [(ngModel)]="startDate" /></div>
           <div><label>Fim (opcional)</label><input type="date" [(ngModel)]="endDate" /></div>
+          <div class="tight"><button class="primary inline" (click)="addToPlaylist()">Adicionar</button></div>
         </div>
-        <button class="primary" (click)="addToPlaylist()">Adicionar à programação</button>
       </div>
+
       <div class="card">
-        <h2>No ar nesta tela</h2>
+        <div class="loop-head">
+          <h2>No ar nesta tela</h2>
+          @if (list().length) {
+            <span class="loop">
+              <strong>{{ loopLabel() }}</strong> por volta · {{ list().length }} {{ list().length === 1 ? 'item' : 'itens' }}
+            </span>
+          }
+        </div>
+
         @if (list().length) {
-          <div class="table-wrap">
-            <table>
-              <tr><th>#</th><th>Anunciante</th><th>Duração</th><th>Campanha</th><th></th></tr>
-              @for (item of list(); track $index) {
-                <tr>
-                  <td class="muted">{{ $index + 1 }}</td>
-                  <td>{{ mediaFor(item.mediaId)?.advertiser || mediaFor(item.mediaId)?.originalName || '?' }}</td>
-                  @if (editingIndex() === $index) {
-                    <td>
+          <ol class="items">
+            @for (item of list(); track $index) {
+              <li>
+                <span class="pos">{{ $index + 1 }}</span>
+                @if (mediaFor(item.mediaId); as m) {
+                  @if (m.type === 'image') {
+                    <img class="thumb" [src]="'/uploads/' + m.filename" [alt]="m.advertiser || m.originalName" />
+                  } @else {
+                    <span class="thumb video-thumb">
+                      <video [src]="'/uploads/' + m.filename + '#t=0.1'" preload="metadata" muted playsinline></video>
+                      <span class="play">▶</span>
+                    </span>
+                  }
+                } @else {
+                  <span class="thumb"></span>
+                }
+
+                @if (editingIndex() === $index) {
+                  <div class="fields">
+                    <div class="field">
+                      <label>Duração</label>
                       @if (mediaFor(item.mediaId)?.type === 'video') {
-                        <span class="muted">vídeo</span>
+                        <span class="muted">o vídeo todo</span>
                       } @else {
                         <input type="number" class="cell-input" [(ngModel)]="editDuration" />
                       }
-                    </td>
-                    <td>
-                      <div class="edit-dates">
-                        <input type="date" class="cell-input" [(ngModel)]="editStartDate" />
-                        <input type="date" class="cell-input" [(ngModel)]="editEndDate" />
-                      </div>
-                    </td>
-                    <td>
-                      <button class="ghost" (click)="saveEdit($index)">salvar</button>
-                      <button class="del" (click)="cancelEdit()">cancelar</button>
-                    </td>
-                  } @else {
-                    <td>
-                      @if (mediaFor(item.mediaId)?.type === 'video') {
-                        <span class="muted">vídeo</span>
-                      } @else {
-                        {{ item.duration }}s
+                    </div>
+                    <div class="field"><label>Início</label><input type="date" class="cell-input" [(ngModel)]="editStartDate" /></div>
+                    <div class="field"><label>Fim</label><input type="date" class="cell-input" [(ngModel)]="editEndDate" /></div>
+                  </div>
+                  <div class="actions">
+                    <button class="ghost" (click)="saveEdit($index)">salvar</button>
+                    <button class="del" (click)="cancelEdit()">cancelar</button>
+                  </div>
+                } @else {
+                  <div class="info">
+                    <strong>{{ titleFor(item) }}</strong>
+                    <span class="meta">
+                      {{ durationLabel(item) }}
+                      @if (item.startDate || item.endDate) {
+                        · campanha {{ item.startDate || '…' }} → {{ item.endDate || '…' }}
                       }
-                    </td>
-                    <td class="muted">{{ item.startDate || '—' }} → {{ item.endDate || '—' }}</td>
-                    <td>
-                      <button class="ghost" (click)="startEdit($index, item)">editar</button>
-                      <button class="ghost" (click)="move($index, -1)">↑</button>
-                      <button class="ghost" (click)="move($index, 1)">↓</button>
-                      <button class="del" (click)="removeItem($index)">remover</button>
-                    </td>
-                  }
-                </tr>
-              }
-            </table>
-          </div>
-          <p class="muted" style="margin-top:12px">Loop total: {{ loopSeconds() }}s por volta.</p>
+                    </span>
+                  </div>
+                  <div class="actions">
+                    <button class="ghost" (click)="move($index, -1)" [disabled]="$index === 0" aria-label="Subir">↑</button>
+                    <button class="ghost" (click)="move($index, 1)" [disabled]="$index === list().length - 1" aria-label="Descer">↓</button>
+                    <button class="ghost" (click)="startEdit($index, item)">editar</button>
+                    <button class="del" (click)="removeItem($index)">remover</button>
+                  </div>
+                }
+              </li>
+            }
+          </ol>
         } @else {
           <div class="empty">Nada programado. A tela mostra "Sem conteúdo".</div>
         }
@@ -89,9 +116,55 @@ import { MediaPickerComponent } from '../../shared/media-picker.component';
     }
   `,
   styles: [`
-    .cell-input { width: auto; min-width: 80px; padding: 6px 8px; font-size: 13px; }
-    .edit-dates { display: flex; gap: 6px; flex-wrap: wrap; }
-    .edit-dates .cell-input { min-width: 130px; }
+    .screen-pick { display: flex; align-items: center; gap: 10px; }
+    .screen-pick label { margin: 0; }
+    .screen-pick select { width: auto; min-width: 200px; }
+
+    .loop-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .loop-head h2 { margin: 0; }
+    .loop { margin-left: auto; color: var(--muted); font-size: 14px; }
+    .loop strong {
+      font-family: var(--display); font-variation-settings: 'wdth' 84;
+      color: var(--green-deep); font-size: 16px;
+    }
+
+    .items { list-style: none; margin: 0; padding: 0; }
+    .items li {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 0; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap;
+    }
+    .items li:last-child { border-bottom: 0; padding-bottom: 0; }
+    .pos {
+      font-family: var(--display); font-variation-settings: 'wdth' 84; font-weight: 800;
+      font-size: 14px; color: var(--muted); width: 22px; text-align: right; flex: none;
+    }
+    .video-thumb { position: relative; overflow: hidden; display: inline-block; }
+    .video-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .video-thumb .play {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 10px; text-shadow: 0 1px 2px rgba(0,0,0,.9); pointer-events: none;
+    }
+
+    .info { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
+    .info strong {
+      font-family: var(--display); font-variation-settings: 'wdth' 84;
+      font-weight: 700; font-size: 16px; overflow-wrap: anywhere;
+    }
+    .info .meta { color: var(--muted); font-size: 13px; }
+
+    .fields { flex: 1; display: flex; gap: 10px; flex-wrap: wrap; min-width: 200px; }
+    .field { display: flex; flex-direction: column; gap: 2px; }
+    .field label { margin: 0; font-size: 10px; }
+    .cell-input { width: auto; min-width: 92px; padding: 6px 9px; font-size: 14px; }
+    .field .muted { padding: 6px 0; }
+
+    @media (max-width: 640px) {
+      .screen-pick { width: 100%; }
+      .screen-pick select { flex: 1; min-width: 0; }
+      .loop { margin-left: 0; }
+      .items li { gap: 10px; }
+      .actions { width: 100%; padding-left: 36px; }
+    }
   `],
 })
 export class ScheduleComponent implements OnInit {
@@ -129,6 +202,15 @@ export class ScheduleComponent implements OnInit {
     return this.media().find((m) => m.id === id);
   }
 
+  titleFor(item: PlaylistItem): string {
+    const m = this.mediaFor(item.mediaId);
+    return m?.advertiser || m?.originalName || 'Mídia removida';
+  }
+
+  durationLabel(item: PlaylistItem): string {
+    return this.mediaFor(item.mediaId)?.type === 'video' ? 'vídeo completo' : `${item.duration}s`;
+  }
+
   async onScreenChange(): Promise<void> {
     this.editingIndex.set(null);
     await this.loadList();
@@ -143,6 +225,14 @@ export class ScheduleComponent implements OnInit {
       const m = this.mediaFor(i.mediaId);
       return acc + (m?.type === 'video' ? 15 : i.duration || 10);
     }, 0);
+  }
+
+  loopLabel(): string {
+    const total = this.loopSeconds();
+    if (total < 60) return `${total}s`;
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return secs ? `${mins}min ${secs}s` : `${mins}min`;
   }
 
   async addToPlaylist(): Promise<void> {

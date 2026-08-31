@@ -46,14 +46,16 @@ import { Media } from '../core/models';
     .picker { position: relative; }
     .trigger {
       width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
-      background: var(--bg); border: 1px solid var(--line); color: var(--txt);
-      padding: 6px 11px; border-radius: 8px; font-size: 14px; cursor: pointer; font-family: inherit;
+      background: var(--surface); border: 1px solid var(--line); color: var(--txt);
+      padding: 6px 12px; border-radius: var(--r); font-size: 15px; cursor: pointer;
+      font-family: inherit; min-height: 44px; transition: border-color .15s;
     }
+    .trigger:hover { border-color: var(--green); }
     .trigger .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trigger .label.muted { color: var(--muted); }
     .chevron { color: var(--muted); font-size: 11px; flex-shrink: 0; }
     .video-thumb {
-      width: 52px; height: 34px; border-radius: 5px; background: #000;
+      width: 56px; height: 36px; border-radius: var(--r); background: var(--ink);
       position: relative; overflow: hidden; flex-shrink: 0; display: inline-block;
     }
     .video-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -64,18 +66,18 @@ import { Media } from '../core/models';
 
     .menu {
       position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0;
-      background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-      max-height: 280px; overflow-y: auto; padding: 6px; box-shadow: 0 12px 28px rgba(0,0,0,.4);
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+      max-height: 300px; overflow-y: auto; padding: 6px; box-shadow: var(--shadow-lg);
     }
     .option {
       width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
-      background: transparent; border: 0; color: var(--txt); padding: 7px 8px; border-radius: 7px;
-      cursor: pointer; font-size: 13px; font-family: inherit;
+      background: transparent; border: 1px solid transparent; color: var(--txt);
+      padding: 7px 8px; border-radius: var(--r); cursor: pointer; font-size: 15px; font-family: inherit;
     }
-    .option:hover { background: var(--bg); }
-    .option.active { background: var(--bg); outline: 1px solid var(--accent); }
+    .option:hover { background: var(--paper); }
+    .option.active { background: var(--green-soft); border-color: var(--green); }
     .option .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .empty-option { padding: 10px 8px; color: var(--muted); font-size: 13px; }
+    .empty-option { padding: 12px 8px; color: var(--muted); font-size: 14px; }
   `],
 })
 export class MediaPickerComponent {
