@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import QRCode from 'qrcode';
 import { Screen } from '../../core/models';
 import { ScreensService } from '../../core/screens.service';
 import { UiService } from '../../core/ui.service';
@@ -44,8 +45,27 @@ const REFRESH_MS = 20 * 1000;
               </button>
             </div>
 
+            <div class="qr">
+              @if (qr()[s.id]; as src) {
+                <img [src]="src" width="112" height="112" [alt]="'QR code da galeria da tela ' + s.name" />
+              } @else {
+                <div class="qr-placeholder"></div>
+              }
+              <div class="qr-info">
+                <strong>QR do ponto</strong>
+                <p>Quem escaneia vê as mídias desta tela e avança/volta à vontade.</p>
+                <div class="qr-actions">
+                  <button class="ghost" (click)="copyGallery(s)">
+                    {{ copiedGallery().has(s.id) ? 'copiado ✓' : 'copiar link' }}
+                  </button>
+                  <button class="ghost" (click)="downloadQr(s)">baixar PNG</button>
+                </div>
+              </div>
+            </div>
+
             <div class="actions">
               <a class="ghost as-btn" [href]="'/' + s.code" target="_blank" rel="noopener">abrir player ↗</a>
+              <a class="ghost as-btn" [href]="'/g/' + s.code" target="_blank" rel="noopener">abrir galeria ↗</a>
               <button class="ghost" [disabled]="reloading().has(s.id)" (click)="reload(s.id)">
                 {{ reloading().has(s.id) ? 'enviado ✓' : 'recarregar' }}
               </button>
@@ -99,6 +119,23 @@ const REFRESH_MS = 20 * 1000;
     }
     .link-box button { flex: none; }
 
+    .qr {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--paper); border: 1px solid var(--line-soft);
+      border-radius: var(--r); padding: 12px;
+    }
+    .qr img, .qr-placeholder {
+      flex: none; width: 112px; height: 112px; border-radius: 6px; background: #fff;
+    }
+    .qr-placeholder { border: 1px dashed var(--line); background: transparent; }
+    .qr-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .qr-info strong {
+      font-family: var(--display); font-variation-settings: 'wdth' 90;
+      font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--green-deep);
+    }
+    .qr-info p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+    .qr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+
     .actions { margin-top: auto; padding-top: 4px; }
     .actions .spacer { flex: 1; }
     a.as-btn { text-decoration: none; display: inline-flex; align-items: center; }
@@ -108,6 +145,9 @@ export class ScreensComponent implements OnInit, OnDestroy {
   readonly screens = signal<Screen[]>([]);
   readonly reloading = signal<Set<string>>(new Set());
   readonly copied = signal<Set<string>>(new Set());
+  readonly copiedGallery = signal<Set<string>>(new Set());
+  // dataURL do QR por tela — gerado no navegador, sem depender de serviço externo.
+  readonly qr = signal<Record<string, string>>({});
   name = '';
   location = '';
   private refreshTimer?: ReturnType<typeof setInterval>;
@@ -125,6 +165,45 @@ export class ScreensComponent implements OnInit, OnDestroy {
 
   async refresh(): Promise<void> {
     this.screens.set(await this.screensService.list());
+    await this.syncQrCodes();
+  }
+
+  // Toda tela ganha seu QR assim que aparece na lista — inclusive a que você acabou de criar.
+  private async syncQrCodes(): Promise<void> {
+    const done = this.qr();
+    const missing = this.screens().filter((s) => !done[s.id]);
+    if (!missing.length) return;
+    const entries = await Promise.all(
+      missing.map(async (s) => [s.id, await QRCode.toDataURL(this.galleryUrl(s), {
+        width: 480, margin: 1, color: { dark: '#12261a', light: '#ffffff' },
+      })] as const),
+    );
+    this.qr.update((map) => ({ ...map, ...Object.fromEntries(entries) }));
+  }
+
+  // Página pública que o QR abre: as mídias no ar naquela tela, navegáveis na mão.
+  galleryUrl(s: Screen): string {
+    return location.origin + '/g/' + s.code;
+  }
+
+  async copyGallery(s: Screen): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.galleryUrl(s));
+    } catch {
+      this.ui.toast('Não consegui copiar. Copie o link à mão.', 'error');
+      return;
+    }
+    this.flag(this.copiedGallery, s.id, 2000);
+    this.ui.toast('Link da galeria copiado.', 'success');
+  }
+
+  downloadQr(s: Screen): void {
+    const src = this.qr()[s.id];
+    if (!src) { this.ui.toast('QR ainda sendo gerado, tente de novo.', 'error'); return; }
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = `tela-${s.code}-qr.png`;
+    a.click();
   }
 
   onlineCount(): number {

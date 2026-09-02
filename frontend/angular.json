@@ -30,7 +30,10 @@
             ],
             "outputPath": "../public/admin",
             "prerender": false,
-            "baseHref": "/admin/"
+            "baseHref": "/admin/",
+            "allowedCommonJsDependencies": [
+              "qrcode"
+            ]
           },
           "configurations": {
             "production": {

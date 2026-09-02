@@ -153,6 +153,14 @@ app.use('/admin', express.static(path.join(__dirname, 'public/admin/browser')));
 const PLAYER_DIR = path.join(__dirname, 'public/tv');
 const PLAYER_HTML = path.join(PLAYER_DIR, 'index.html');
 app.use('/tv', express.static(PLAYER_DIR));
+// Galeria publica do ponto: e pra ca que aponta o QR code de cada tela. HTML/JS puro
+// (sem build) porque abre no celular de quem passa no ponto comercial.
+const GALLERY_DIR = path.join(__dirname, 'public/gallery');
+app.use('/g', express.static(GALLERY_DIR));
+app.get('/g/:code(\\d+)', (req, res) => {
+  if (!resolveScreenId(req.params.code)) return res.status(404).send('Tela nao encontrada');
+  res.sendFile(path.join(GALLERY_DIR, 'index.html'));
+});
 // URL curta que se digita na TV: /1, /2, /3...
 app.get('/:code(\\d+)', (req, res) => {
   if (!resolveScreenId(req.params.code)) return res.status(404).send('Tela nao encontrada');
@@ -310,9 +318,9 @@ app.put('/api/playlists/:screenId', requireAuth, (req, res) => {
 });
 
 // ---------- Feed que o PLAYER consome (ja filtrado por datas de campanha) ----------
-app.get('/api/play/:screenId', (req, res) => {
-  const screenId = resolveScreenId(req.params.screenId);
-  if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
+// Midias da tela que estao no ar HOJE (respeita as datas de campanha). Usada pelo player
+// e pela galeria publica do QR, pra regra de campanha viver num lugar so.
+function activeItems(screenId) {
   const today = new Date().toISOString().slice(0, 10);
   const rows = db.prepare(`
     SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.advertiser
@@ -320,12 +328,26 @@ app.get('/api/play/:screenId', (req, res) => {
     WHERE p.screenId = ?
     ORDER BY p.position
   `).all(screenId);
-  const items = rows.filter(r => {
+  return rows.filter(r => {
     if (r.startDate && today < r.startDate) return false;
     if (r.endDate && today > r.endDate) return false;
     return true;
   }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser }));
-  res.json({ screenId, items });
+}
+
+app.get('/api/play/:screenId', (req, res) => {
+  const screenId = resolveScreenId(req.params.screenId);
+  if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
+  res.json({ screenId, items: activeItems(screenId) });
+});
+
+// Feed da GALERIA publica (o que o QR da tela abre). Mesmo conteudo do player, sem duracao
+// mandando no ritmo: quem escaneia avanca e volta na mao.
+app.get('/api/gallery/:code', (req, res) => {
+  const screenId = resolveScreenId(req.params.code);
+  if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
+  const row = db.prepare('SELECT code, name, location FROM screens WHERE id = ?').get(screenId);
+  res.json({ code: row.code, name: row.name, location: row.location, items: activeItems(screenId) });
 });
 
 // ---------- Heartbeat (o player avisa que esta vivo, pra tela aparecer online no painel) ----------
