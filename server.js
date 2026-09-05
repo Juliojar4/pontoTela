@@ -137,6 +137,31 @@ function resolveScreenId(key) {
   return key;
 }
 
+// ---------- SEO: host canonico + controle de indexacao ----------
+// O dominio canonico e https://pontotela.com.br (sem www). Servir o mesmo site
+// em dois hosts divide os sinais entre duas URLs e e justamente o que trava a
+// busca por marca "pontotela". 301 permanente concentra tudo num endereco so.
+const CANONICAL_HOST = process.env.CANONICAL_HOST || 'pontotela.com.br';
+app.use((req, res, next) => {
+  const host = (req.headers.host || '').toLowerCase();
+  if (host === 'www.' + CANONICAL_HOST) {
+    return res.redirect(301, 'https://' + CANONICAL_HOST + req.originalUrl);
+  }
+  next();
+});
+// Painel, player, galerias e uploads sao ferramentas, nao conteudo de busca.
+// O robots.txt ja pede pra nao rastrear; o header garante que nada disso entre
+// no indice mesmo se for descoberto por link externo (robots.txt nao desindexa).
+const NO_INDEX_PREFIXES = ['/admin', '/tv', '/player', '/g', '/uploads', '/api'];
+app.use((req, res, next) => {
+  const p = req.path;
+  const isScreenShortUrl = /^\/\d+(\/|$)/.test(p);
+  if (isScreenShortUrl || NO_INDEX_PREFIXES.some(prefix => p === prefix || p.startsWith(prefix + '/'))) {
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(session({
   secret: SESSION_SECRET,
@@ -203,7 +228,17 @@ for (const p of ['/ngsw-worker.js', '/player/ngsw-worker.js', '/player/safety-wo
 app.get(['/player', '/player/*'], (req, res) => res.sendFile(PLAYER_HTML));
 // Site institucional (estatico) na raiz do dominio. Fica DEPOIS de /admin e /player,
 // e como express.static so responde arquivo existente, as rotas de API abaixo seguem intactas.
-app.use('/', express.static(path.join(__dirname, 'public/site'), { extensions: ['html'] }));
+app.use('/', express.static(path.join(__dirname, 'public/site'), {
+  extensions: ['html'],
+  // CSS/JS/imagens do site podem ficar em cache; o HTML nao, senao uma correcao
+  // de texto ou de SEO demora dias pra chegar em quem ja visitou.
+  maxAge: '7d',
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html') || filePath.endsWith('robots.txt') || filePath.endsWith('sitemap.xml') || filePath.endsWith('llms.txt')) {
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    }
+  }
+}));
 // Fallback pra roteamento client-side das SPAs (ex: /admin/telas ao dar F5)
 app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public/admin/browser/index.html')));
 

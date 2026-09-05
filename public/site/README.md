@@ -8,6 +8,12 @@ na raiz do domínio — veja `server.js`, logo depois das rotas `/admin` e `/pla
       styles.css     visual
       main.js        CONFIG + animações
       img/           favicon
+      apresentacao-pontotela.pdf   apresentação de 9 páginas pro lojista baixar
+
+A apresentação em PDF é servida na raiz (`/apresentacao-pontotela.pdf`) e está
+linkada no CTA final e no rodapé. É o mesmo argumento do site em formato pra
+mandar no zap: proposta, processo, o que roda na tela, o combinado, a parte do
+dinheiro e o FAQ — sem número de telas nem audiência, pelo mesmo motivo do site.
 
 Deploy: entra junto com o deploy normal (`git push` na master). Não precisa buildar nada.
 

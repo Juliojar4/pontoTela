@@ -3,17 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PontoTela — a mídia do comércio que move a cidade</title>
-<meta name="description" content="A gente instala uma tela dentro do seu comércio em Itapetininga e cuida dela. Você não paga instalação, nem mensalidade, nem manutenção. Na tela passa o seu negócio, pra quem já está lá esperando.">
+
+<!-- ===================== SEO / IDENTIDADE ===================== -->
+<!-- O nome "PontoTela" colide com "ponto tela", um ponto de trico/croche.
+     Por isso todo sinal aqui repete: PontoTela = EMPRESA de midia indoor em
+     Itapetininga/SP. Marca + categoria + cidade juntas em title, description,
+     H1 e JSON-LD e o que ensina o Google a separar as duas entidades. -->
+<title>PontoTela | Mídia Indoor em Itapetininga/SP — tela sem custo pro seu comércio</title>
+<meta name="description" content="PontoTela é a rede de mídia indoor de Itapetininga/SP: instalamos uma tela dentro do seu comércio sem custo de instalação, mensalidade ou manutenção. Na tela passam os seus serviços, seus preços e seus horários, para o cliente que já está esperando no seu balcão.">
+<link rel="canonical" href="https://pontotela.com.br/">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="author" content="PontoTela">
+<meta name="publisher" content="PontoTela">
+<link rel="alternate" hreflang="pt-BR" href="https://pontotela.com.br/">
+<link rel="alternate" hreflang="x-default" href="https://pontotela.com.br/">
+
+<!-- Sinais geográficos: reforçam a leitura local da entidade -->
+<meta name="geo.region" content="BR-SP">
+<meta name="geo.placename" content="Itapetininga, São Paulo">
+<meta name="geo.position" content="-23.591667;-48.053056">
+<meta name="ICBM" content="-23.591667, -48.053056">
+
 <meta name="theme-color" content="#101511">
 <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
-<meta property="og:title" content="PontoTela — a mídia do comércio que move a cidade">
-<meta property="og:description" content="Instalação, conteúdo e manutenção por nossa conta. Você ganha uma tela que fala do seu negócio o dia inteiro.">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+
+<!-- ===================== OPEN GRAPH / TWITTER ===================== -->
+<meta property="og:site_name" content="PontoTela">
+<meta property="og:locale" content="pt_BR">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://pontotela.com.br/">
+<meta property="og:title" content="PontoTela | Mídia Indoor em Itapetininga/SP">
+<meta property="og:description" content="Instalamos uma tela dentro do seu comércio em Itapetininga sem custo nenhum. Instalação, conteúdo e manutenção por nossa conta — na tela passa o seu negócio.">
+<meta property="og:image" content="https://pontotela.com.br/img/og-pontotela.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="PontoTela — rede de mídia indoor de Itapetininga/SP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PontoTela | Mídia Indoor em Itapetininga/SP">
+<meta name="twitter:description" content="Uma tela dentro do seu comércio, sem custo. Instalação, conteúdo e manutenção por nossa conta.">
+<meta name="twitter:image" content="https://pontotela.com.br/img/og-pontotela.png">
+
+<!-- ===================== PERFORMANCE (Core Web Vitals) ===================== -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
 <link rel="stylesheet" href="styles.css">
+<!-- Fonte carregada sem bloquear a renderização: o CSS do Google entra como
+     print e vira "all" no onload. Corta ~1 round-trip do caminho crítico. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap"></noscript>
 </head>
 <body>
 
@@ -47,8 +87,8 @@
     <div class="hero-copy">
       <p class="eyebrow"><span class="dot"></span> Mídia indoor · Itapetininga/SP</p>
       <h1>
-        PontoTela.
-        <em>A mídia do comércio que move a cidade.</em>
+        PontoTela: mídia indoor em Itapetininga.
+        <em>A tela do comércio que move a cidade.</em>
       </h1>
       <p class="lede">
         Quem senta pra esperar no seu balcão passa uns 30 minutos olhando o celular.
@@ -336,6 +376,14 @@
     </div>
 
     <div class="faq-list" data-reveal>
+      <details class="faq-item" open>
+        <summary>O que é o PontoTela?</summary>
+        <div><p>O <strong>PontoTela</strong> é uma rede de <strong>mídia indoor</strong> (DOOH) de <strong>Itapetininga/SP</strong>. A gente instala uma tela digital dentro do comércio local — barbearia, salão, academia, pet shop, clínica, oficina, loja de bairro — sem nenhum custo pro lojista. Na tela passam os serviços, os preços, os horários e as promoções do próprio comércio, pra quem já está lá esperando. Quem paga a conta é o anunciante parceiro da rede, não o dono da loja.</p></div>
+      </details>
+      <details class="faq-item">
+        <summary>Quanto custa pro comércio ter a tela?</summary>
+        <div><p>Nada. Tela, suporte, aparelho, criação das artes, instalação, operação do conteúdo e manutenção são todos por conta do PontoTela. O único custo do lojista é a energia da tomada — equivalente à de uma TV comum ligada no horário comercial.</p></div>
+      </details>
       <details class="faq-item">
         <summary>Qual é a pegadinha? Ninguém dá uma tela de graça.</summary>
         <div><p>Não tem pegadinha, e dá pra explicar em uma linha: quem paga a conta é o anunciante da rede, não você. Pra rede existir a gente precisa de pontos bons, e o seu comércio é o ponto. Você não assina nada que te obrigue a ficar e pode pedir pra tirar a tela quando quiser.</p></div>
@@ -365,7 +413,7 @@
         <div><p>Depois da visita e do ok nas artes, a instalação leva pouco mais de uma hora. A gente marca no horário que atrapalhar menos o seu movimento.</p></div>
       </details>
       <details class="faq-item">
-        <summary>Atendem fora de Itapetininga?</summary>
+        <summary>O PontoTela atende fora de Itapetininga?</summary>
         <div><p>A gente está começando por Itapetininga. Se você é de cidade vizinha, chama do mesmo jeito — a gente conversa e vê o que dá pra fazer.</p></div>
       </details>
     </div>
@@ -380,6 +428,10 @@
       <a class="btn btn-wa btn-lg" data-wa="Oi! Tenho um comércio em Itapetininga e queria uma tela na minha loja. Meu negócio é: ">
         <svg class="wa-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.6 2 2.2 6.4 2.2 11.84c0 1.94.5 3.76 1.4 5.34L2 22l4.96-1.56a9.8 9.8 0 0 0 5.08 1.4h.01c5.43 0 9.83-4.4 9.83-9.84C21.88 6.4 17.47 2 12.04 2Zm5.74 14.02c-.24.68-1.4 1.3-1.94 1.34-.5.05-.98.24-3.3-.7-2.78-1.1-4.55-3.94-4.68-4.12-.14-.18-1.12-1.5-1.12-2.86 0-1.36.7-2.02.96-2.3.24-.26.53-.32.7-.32.18 0 .36 0 .5.01.16.01.38-.06.6.46.24.56.8 1.94.87 2.08.07.14.12.3.02.48-.1.18-.14.3-.28.46-.14.16-.3.36-.42.48-.14.14-.29.3-.12.58.16.28.73 1.2 1.56 1.95 1.07.95 1.98 1.25 2.26 1.39.28.14.44.12.6-.07.18-.2.7-.8.88-1.08.18-.28.36-.23.6-.14.24.09 1.6.76 1.87.9.28.13.46.2.53.31.07.12.07.66-.17 1.34Z"/></svg>
         Falar no WhatsApp agora
+      </a>
+      <a class="btn btn-outline-light btn-lg" href="/apresentacao-pontotela.pdf" type="application/pdf" download>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+        Baixar a apresentação (PDF)
       </a>
     </div>
     <p class="cta-note" data-reveal>
@@ -418,6 +470,7 @@
     <div class="footer-col">
       <h4>Contato</h4>
       <a data-wa="Oi! Vi o site do PontoTela e queria uma tela na minha loja.">WhatsApp (15) 99627-3799</a>
+      <a href="/apresentacao-pontotela.pdf" type="application/pdf" download>Apresentação em PDF</a>
     </div>
     <div class="footer-col">
       <h4>Empresa</h4>
@@ -435,6 +488,215 @@
 <a class="wa-float" data-wa="Oi! Tenho um comércio em Itapetininga e queria uma tela na minha loja." aria-label="Falar no WhatsApp">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2C6.6 2 2.2 6.4 2.2 11.84c0 1.94.5 3.76 1.4 5.34L2 22l4.96-1.56a9.8 9.8 0 0 0 5.08 1.4h.01c5.43 0 9.83-4.4 9.83-9.84C21.88 6.4 17.47 2 12.04 2Zm5.74 14.02c-.24.68-1.4 1.3-1.94 1.34-.5.05-.98.24-3.3-.7-2.78-1.1-4.55-3.94-4.68-4.12-.14-.18-1.12-1.5-1.12-2.86 0-1.36.7-2.02.96-2.3.24-.26.53-.32.7-.32.18 0 .36 0 .5.01.16.01.38-.06.6.46.24.56.8 1.94.87 2.08.07.14.12.3.02.48-.1.18-.14.3-.28.46-.14.16-.3.36-.42.48-.14.14-.29.3-.12.58.16.28.73 1.2 1.56 1.95 1.07.95 1.98 1.25 2.26 1.39.28.14.44.12.6-.07.18-.2.7-.8.88-1.08.18-.28.36-.23.6-.14.24.09 1.6.76 1.87.9.28.13.46.2.53.31.07.12.07.66-.17 1.34Z"/></svg>
 </a>
+
+
+<!-- ===================== DADOS ESTRUTURADOS (schema.org) =====================
+     Este bloco é o que faz o Google entender "PontoTela" como uma EMPRESA real
+     (CNPJ, telefone, cidade, categoria AdvertisingAgency) e não como o ponto de
+     tricô de mesmo nome. disambiguatingDescription existe exatamente pra isso.
+     Ao receber o endereço completo, preencher streetAddress/postalCode abaixo.
+     Ao criar as redes sociais e o Perfil da Empresa no Google, preencher sameAs.
+============================================================================ -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": ["Organization", "AdvertisingAgency"],
+      "@id": "https://pontotela.com.br/#organizacao",
+      "name": "PontoTela",
+      "alternateName": ["Ponto Tela", "PontoTela Mídia Indoor", "PontoTela Itapetininga"],
+      "legalName": "PontoTela",
+      "url": "https://pontotela.com.br/",
+      "description": "Rede de mídia indoor (DOOH) de Itapetininga/SP. Instala e mantém telas digitais dentro de comércios locais sem custo para o estabelecimento, exibindo o conteúdo do próprio comércio e anúncios de parceiros da região.",
+      "disambiguatingDescription": "Empresa de mídia indoor e publicidade digital em ponto de venda, sediada em Itapetininga, São Paulo, Brasil, identificada pelo CNPJ 67.108.930/0001-34. PontoTela, escrito junto, é esta rede de telas em comércios locais — não é o ponto de tricô e crochê chamado ponto tela, nem qualquer software de controle de ponto eletrônico de nome parecido.",
+      "slogan": "A mídia do comércio que move a cidade.",
+      "taxID": "67.108.930/0001-34",
+      "vatID": "67.108.930/0001-34",
+      "foundingDate": "2026",
+      "knowsAbout": [
+        "Mídia indoor",
+        "DOOH (Digital Out of Home)",
+        "Publicidade em ponto de venda",
+        "Sinalização digital",
+        "Digital signage",
+        "Marketing para comércio local",
+        "Propaganda em Itapetininga"
+      ],
+      "logo": {
+        "@type": "ImageObject",
+        "@id": "https://pontotela.com.br/#logo",
+        "url": "https://pontotela.com.br/img/og-pontotela.png",
+        "contentUrl": "https://pontotela.com.br/img/og-pontotela.png",
+        "width": 1200,
+        "height": 630,
+        "caption": "PontoTela — mídia indoor em Itapetininga/SP"
+      },
+      "image": { "@id": "https://pontotela.com.br/#logo" },
+      "telephone": "+55-15-99627-3799",
+      "priceRange": "Gratuito para o estabelecimento",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Itapetininga",
+        "addressRegion": "SP",
+        "addressCountry": "BR"
+      },
+      "areaServed": [
+        {
+          "@type": "City",
+          "name": "Itapetininga",
+          "containedInPlace": { "@type": "State", "name": "São Paulo" }
+        },
+        {
+          "@type": "AdministrativeArea",
+          "name": "Região de Itapetininga, interior de São Paulo"
+        }
+      ],
+      "contactPoint": [{
+        "@type": "ContactPoint",
+        "contactType": "Atendimento comercial",
+        "telephone": "+55-15-99627-3799",
+        "availableLanguage": ["Portuguese", "pt-BR"],
+        "areaServed": "BR",
+        "url": "https://wa.me/5515996273799"
+      }],
+      "openingHoursSpecification": [{
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "opens": "08:00",
+        "closes": "18:00"
+      }],
+      "makesOffer": [{
+        "@type": "Offer",
+        "itemOffered": { "@id": "https://pontotela.com.br/#servico" },
+        "price": "0",
+        "priceCurrency": "BRL",
+        "description": "Instalação, conteúdo e manutenção da tela sem custo para o estabelecimento."
+      }]
+    },
+    {
+      "@type": "Service",
+      "@id": "https://pontotela.com.br/#servico",
+      "name": "Tela de mídia indoor sem custo para comércios",
+      "serviceType": "Mídia indoor / DOOH em ponto de venda",
+      "category": "Publicidade e propaganda",
+      "description": "Instalação de uma tela digital dentro do comércio, sem custo de instalação, mensalidade ou manutenção. O PontoTela produz a arte, instala o equipamento, opera o conteúdo remotamente e faz a manutenção. Na tela passam os serviços, preços, horários e promoções do próprio comércio.",
+      "provider": { "@id": "https://pontotela.com.br/#organizacao" },
+      "areaServed": { "@type": "City", "name": "Itapetininga" },
+      "audience": {
+        "@type": "BusinessAudience",
+        "name": "Comércios locais: barbearias, salões, academias, pet shops, clínicas, oficinas e lojas de bairro"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL",
+        "availability": "https://schema.org/InStock"
+      },
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "O que está incluso",
+        "itemListElement": [
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Tela, suporte e aparelho de reprodução" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Criação das artes do comércio" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Instalação no ponto" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Operação e troca de conteúdo remota" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Manutenção e troca de equipamento" } }
+        ]
+      }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://pontotela.com.br/#site",
+      "url": "https://pontotela.com.br/",
+      "name": "PontoTela",
+      "description": "Site oficial do PontoTela, rede de mídia indoor de Itapetininga/SP.",
+      "inLanguage": "pt-BR",
+      "publisher": { "@id": "https://pontotela.com.br/#organizacao" }
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://pontotela.com.br/#pagina",
+      "url": "https://pontotela.com.br/",
+      "name": "PontoTela | Mídia Indoor em Itapetininga/SP",
+      "description": "PontoTela instala uma tela dentro do seu comércio em Itapetininga sem custo de instalação, mensalidade ou manutenção.",
+      "isPartOf": { "@id": "https://pontotela.com.br/#site" },
+      "about": { "@id": "https://pontotela.com.br/#organizacao" },
+      "primaryImageOfPage": { "@id": "https://pontotela.com.br/#logo" },
+      "inLanguage": "pt-BR",
+      "breadcrumb": { "@id": "https://pontotela.com.br/#breadcrumb" }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://pontotela.com.br/#breadcrumb",
+      "itemListElement": [{
+        "@type": "ListItem",
+        "position": 1,
+        "name": "PontoTela — Mídia Indoor em Itapetininga",
+        "item": "https://pontotela.com.br/"
+      }]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://pontotela.com.br/#faq",
+      "isPartOf": { "@id": "https://pontotela.com.br/#pagina" },
+      "inLanguage": "pt-BR",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "O que é o PontoTela?",
+          "acceptedAnswer": { "@type": "Answer", "text": "O PontoTela é uma rede de mídia indoor de Itapetininga/SP. Instalamos uma tela digital dentro do comércio local — barbearia, academia, pet shop, clínica, loja de bairro — sem nenhum custo para o lojista. Na tela passam os serviços, preços, horários e promoções do próprio comércio, para o cliente que já está lá esperando. Quem paga a conta é o anunciante parceiro da rede." }
+        },
+        {
+          "@type": "Question",
+          "name": "Qual é a pegadinha? Ninguém dá uma tela de graça.",
+          "acceptedAnswer": { "@type": "Answer", "text": "Não tem pegadinha, e dá pra explicar em uma linha: quem paga a conta é o anunciante da rede, não você. Pra rede existir a gente precisa de pontos bons, e o seu comércio é o ponto. Você não assina nada que te obrigue a ficar e pode pedir pra tirar a tela quando quiser." }
+        },
+        {
+          "@type": "Question",
+          "name": "Vou pagar a energia da tela?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A tela fica na sua tomada, então o consumo é o da sua loja. É pouco: parecido com uma TV comum ligada no horário comercial. Fora isso, nada é seu." }
+        },
+        {
+          "@type": "Question",
+          "name": "Minha loja vai virar propaganda dos outros?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Não. Quase tudo que passa é conteúdo seu. Anúncio de parceiro entra no meio, nunca no lugar do seu, nunca de um concorrente — e só com o seu ok." }
+        },
+        {
+          "@type": "Question",
+          "name": "Preciso saber mexer em alguma coisa?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Não. A tela liga e roda sozinha. Quando quiser mudar algo, é só mandar mensagem: a gente altera daqui, você nem chega perto do aparelho." }
+        },
+        {
+          "@type": "Question",
+          "name": "Preciso assinar contrato?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A gente deixa no papel só o que protege os dois lados: a tela continua sendo nossa e você pode pedir a retirada quando quiser. Não tem prazo mínimo, não tem multa, não tem fidelidade." }
+        },
+        {
+          "@type": "Question",
+          "name": "E se a tela quebrar ou parar?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Você avisa e a gente resolve. Conserto e troca do aparelho são por nossa conta." }
+        },
+        {
+          "@type": "Question",
+          "name": "Quanto tempo demora pra instalar?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Depois da visita e do ok nas artes, a instalação leva pouco mais de uma hora. A gente marca no horário que atrapalhar menos o seu movimento." }
+        },
+        {
+          "@type": "Question",
+          "name": "O PontoTela atende fora de Itapetininga?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A gente está começando por Itapetininga. Se você é de cidade vizinha, chama do mesmo jeito — a gente conversa e vê o que dá pra fazer." }
+        },
+        {
+          "@type": "Question",
+          "name": "Quanto custa pro comércio ter a tela?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Nada. Tela, suporte, aparelho, criação das artes, instalação, operação do conteúdo e manutenção são todos por conta do PontoTela. O único custo do lojista é a energia da tomada — equivalente à de uma TV comum ligada no horário comercial." }
+        }
+      ]
+    }
+  ]
+}
+</script>
 
 <script src="main.js" defer></script>
 </body>

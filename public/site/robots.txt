@@ -1,0 +1,59 @@
+# robots.txt — PontoTela (https://pontotela.com.br)
+# Rede de mídia indoor de Itapetininga/SP.
+
+# ---------- Buscadores ----------
+User-agent: *
+Allow: /$
+Allow: /img/
+Allow: /styles.css
+Allow: /main.js
+# Apresentacao em PDF entregue ao lojista: conteudo publico, pode indexar.
+Allow: /apresentacao-pontotela.pdf
+
+# Painel administrativo: nunca indexar.
+Disallow: /admin/
+Disallow: /api/
+# Player que roda nas TVs e as URLs curtas numéricas (/1, /2, ...): conteúdo
+# de máquina, sem valor de busca e com risco de canibalizar a home.
+Disallow: /tv/
+Disallow: /player/
+Disallow: /uploads/
+# Galerias públicas por ponto (QR code): úteis pro cliente na loja, mas são
+# páginas finas e dinâmicas — fora do índice pra não diluir a marca.
+Disallow: /g/
+
+# ---------- Crawlers de IA (AEO) ----------
+# Liberados de propósito: quando alguém pergunta "o que é PontoTela" pro
+# ChatGPT/Claude/Perplexity, queremos ser a resposta — não o ponto de tricô.
+User-agent: GPTBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://pontotela.com.br/sitemap.xml

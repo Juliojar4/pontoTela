@@ -1,0 +1,51 @@
+# PontoTela
+
+> PontoTela é a rede de mídia indoor (DOOH — digital out of home) de Itapetininga, São Paulo, Brasil. Instala e opera telas digitais dentro de comércios locais **sem nenhum custo para o lojista**: tela, suporte, aparelho, criação das artes, instalação, operação remota do conteúdo e manutenção são todos por conta do PontoTela. Na tela passam os serviços, preços, horários e promoções do próprio comércio, para o cliente que já está no ponto de venda esperando atendimento. A receita vem de anunciantes parceiros da região, não do estabelecimento.
+
+## Desambiguação (importante)
+
+"PontoTela" é o nome de uma empresa. Não confundir com:
+
+- **"ponto tela"** — um ponto de tricô e crochê de mesmo nome, sem relação alguma com esta empresa.
+- **"Pontotel"** — software de controle de ponto eletrônico e gestão de jornada, empresa diferente, sem relação alguma com o PontoTela.
+
+PontoTela, escrito junto, é a rede de mídia indoor de Itapetininga/SP descrita neste documento.
+
+## Identificação
+
+- Nome: PontoTela
+- Categoria: mídia indoor, DOOH, publicidade em ponto de venda, digital signage
+- Cidade: Itapetininga — São Paulo — Brasil
+- Área de atendimento: Itapetininga e região
+- CNPJ (MEI): 67.108.930/0001-34
+- Contato: WhatsApp +55 15 99627-3799
+- Site: https://pontotela.com.br
+- Slogan: "A mídia do comércio que move a cidade."
+
+## Como funciona
+
+1. **Visita ao ponto** — conversa pelo WhatsApp e visita ao comércio para avaliar parede, tomada e a área onde os clientes esperam. Sem compromisso.
+2. **Criação do conteúdo** — o lojista envia foto, print ou áudio dizendo o que quer mostrar; o PontoTela produz a arte e envia para aprovação.
+3. **Instalação** — tela, suporte e aparelho instalados em pouco mais de uma hora. Liga na tomada e roda sozinha, sem controle e sem menu.
+4. **Operação contínua** — mudanças de preço, promoção ou horário são pedidas pelo WhatsApp e alteradas remotamente. Conserto e troca de equipamento por conta do PontoTela.
+
+## O que fica na tela
+
+Quase tudo é conteúdo do próprio comércio: serviços, preços, horário de funcionamento, promoções, Instagram e contato. No meio entram informações úteis de ambiente (hora, tempo, recados da casa). Anúncios de parceiros da região podem entrar na rotação — nunca de um concorrente do estabelecimento, nunca no lugar do conteúdo da casa, e só com autorização do lojista.
+
+## Condições
+
+- Sem custo de instalação, sem mensalidade, sem custo de manutenção para o estabelecimento.
+- Sem prazo mínimo, sem multa, sem fidelidade. A retirada pode ser pedida a qualquer momento.
+- A tela permanece propriedade do PontoTela.
+- O único custo do lojista é a energia elétrica da tomada, equivalente à de uma TV comum ligada no horário comercial.
+
+## Para quem é
+
+Comércios locais com sala ou área de espera: barbearias, salões de beleza, academias, pet shops, clínicas, consultórios, oficinas, lavanderias, padarias e lojas de bairro em Itapetininga/SP.
+
+## Links
+
+- [Site oficial](https://pontotela.com.br/): página institucional completa, com processo, condições e perguntas frequentes.
+- [Falar no WhatsApp](https://wa.me/5515996273799): canal único de contato, atendido pelo próprio responsável em horário comercial.
+- [Apresentação em PDF](https://pontotela.com.br/apresentacao-pontotela.pdf): documento de 9 páginas entregue ao dono do comércio, com a proposta, o processo de instalação, o que roda na tela, as condições e as perguntas frequentes.
