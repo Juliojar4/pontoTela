@@ -117,7 +117,7 @@ export class MediaComponent implements OnInit {
   constructor(private mediaService: MediaService, private ui: UiService) {}
 
   async ngOnInit(): Promise<void> {
-    await this.refresh();
+    await this.refresh(); 
   }
 
   async refresh(): Promise<void> {
