@@ -7,6 +7,10 @@ Allow: /$
 Allow: /img/
 Allow: /styles.css
 Allow: /main.js
+Allow: /favicon.ico
+Allow: /favicon-48.png
+Allow: /favicon-96.png
+Allow: /favicon-144.png
 # Apresentacao em PDF entregue ao lojista: conteudo publico, pode indexar.
 Allow: /apresentacao-pontotela.pdf
 
