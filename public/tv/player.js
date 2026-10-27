@@ -221,8 +221,20 @@
     request('POST', '/api/heartbeat/' + encodeURIComponent(screenKey), null, function (text) {
       var data = parse(text);
       // O painel pediu reload desta tela depois que este player carregou.
-      if (data && data.reloadAt && data.reloadAt > bootTime) location.reload();
+      if (!data || !data.reloadAt || data.reloadAt <= bootTime) return;
+      // location.reload() derruba a tela cheia, e o navegador so devolve com um gesto do
+      // usuario. Em tela cheia, recarrega so a programacao e recomeca do primeiro item.
+      if (isFullscreen()) {
+        bootTime = data.reloadAt;
+        fetchPlaylist(function () { idx = 0; playNext(); });
+      } else {
+        location.reload();
+      }
     });
+  }
+
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
 
   // ---------- tela cheia ----------
@@ -236,7 +248,7 @@
   }
 
   function goFullscreen() {
-    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    if (isFullscreen()) return;
     var el = document.documentElement;
     var req = el.requestFullscreen || el.webkitRequestFullscreen ||
               el.webkitRequestFullScreen || el.mozRequestFullScreen || el.msRequestFullscreen;
