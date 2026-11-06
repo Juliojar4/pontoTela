@@ -6,6 +6,23 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
+const QRCode = require('qrcode');
+const { generateSecret, verifyTotp, otpauthUri, encryptSecret, decryptSecret } = require('./lib/totp');
+const google = require('./lib/google');
+
+// Sem estas variaveis o login nao funciona (e a senha antiga nao existe mais): nao sobe.
+const REQUIRED_ENV = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'ADMIN_EMAIL', 'TOTP_ENCRYPTION_KEY'];
+const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingEnv.length) {
+  console.error('ERRO: variaveis de ambiente obrigatorias ausentes: ' + missingEnv.join(', ') + '. Veja o .env.example.');
+  process.exit(1);
+}
+if (!/^[0-9a-fA-F]{64}$/.test(process.env.TOTP_ENCRYPTION_KEY)) {
+  console.error('ERRO: TOTP_ENCRYPTION_KEY deve ter 64 caracteres hexadecimais (openssl rand -hex 32).');
+  process.exit(1);
+}
+const TOTP_KEY = process.env.TOTP_ENCRYPTION_KEY;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL.trim().toLowerCase();
 
 const app = express();
 app.set('trust proxy', 1); // atras do Caddy: confia no X-Forwarded-For do 1o hop pra pegar o IP real
@@ -13,12 +30,8 @@ const PORT = process.env.PORT || 3000;
 const DB_FILE = process.env.DB_FILE || path.join(__dirname, 'data.sqlite');
 const LEGACY_DATA_FILE = path.join(__dirname, 'data.json');
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
-if (!ADMIN_PASSWORD) {
-  console.warn('AVISO: ADMIN_PASSWORD nao definida. Defina essa variavel de ambiente para proteger o painel.');
-}
 if (!process.env.SESSION_SECRET) {
   console.warn('AVISO: SESSION_SECRET nao definida. Sessoes serao invalidadas a cada reinicio do processo.');
 }
@@ -64,6 +77,17 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_impressions_ts ON impressions(ts);
   CREATE INDEX IF NOT EXISTS idx_impressions_screen ON impressions(screenId);
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL,
+    googleSub TEXT,
+    totpSecret TEXT,
+    totpEnabledAt INTEGER,
+    totpLastStep INTEGER,
+    authEpoch INTEGER NOT NULL DEFAULT 0,
+    createdAt INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS counters (
     name TEXT PRIMARY KEY,
     value INTEGER NOT NULL
@@ -119,6 +143,9 @@ if (dbIsNew && fs.existsSync(LEGACY_DATA_FILE)) {
 }
 
 const id = () => crypto.randomBytes(6).toString('hex');
+// O admin nasce (ou e promovido) a partir de ADMIN_EMAIL a cada subida.
+db.prepare("INSERT INTO users (id, email, role, createdAt) VALUES (?, ?, 'admin', ?) ON CONFLICT(email) DO UPDATE SET role = 'admin'")
+  .run(crypto.randomBytes(6).toString('hex'), ADMIN_EMAIL, Date.now());
 // Codigo sempre crescente: se uma tela for excluida o numero dela nao volta a ser usado,
 // senao uma TV antiga apontada pra /2 passaria a exibir a programacao de outro ponto.
 function nextScreenCode() {
@@ -152,7 +179,7 @@ app.use((req, res, next) => {
 // Painel, player, galerias e uploads sao ferramentas, nao conteudo de busca.
 // O robots.txt ja pede pra nao rastrear; o header garante que nada disso entre
 // no indice mesmo se for descoberto por link externo (robots.txt nao desindexa).
-const NO_INDEX_PREFIXES = ['/admin', '/tv', '/player', '/g', '/uploads', '/api'];
+const NO_INDEX_PREFIXES = ['/admin', '/tv', '/player', '/g', '/uploads', '/api', '/entrar', '/auth', '/minhatela'];
 app.use((req, res, next) => {
   const p = req.path;
   const isScreenShortUrl = /^\/\d+(\/|$)/.test(p);
@@ -168,7 +195,7 @@ app.use(session({
   name: 'dooh.sid',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 }
+  cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 30 * 24 * 60 * 60 * 1000 }
 }));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '365d' }));
 app.use('/admin', express.static(path.join(__dirname, 'public/admin/browser')));
@@ -242,44 +269,134 @@ app.use('/', express.static(path.join(__dirname, 'public/site'), {
 // Fallback pra roteamento client-side das SPAs (ex: /admin/telas ao dar F5)
 app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public/admin/browser/index.html')));
 
-function requireAuth(req, res, next) {
-  if (req.session && req.session.authenticated) return next();
-  res.status(401).json({ error: 'nao autenticado' });
-}
+// ---------- Autenticacao: Google + Authenticator ----------
+// Tres estados na sessao, nunca misturados (regenerate a cada etapa):
+//   oauth   { state, nonce }        entre /auth/google e o callback
+//   pending { userId, enrollSecret? } Google ok, falta o codigo: so /api/auth/* enxerga
+//   user    { id, role, authEpoch }   logado de verdade
+const regenerate = (req, data) => new Promise((resolve, reject) =>
+  req.session.regenerate(err => { if (err) return reject(err); Object.assign(req.session, data); resolve(); }));
 
-// ---------- Autenticacao ----------
-// Protecao simples contra forca bruta: N tentativas erradas por IP numa janela de tempo.
-const LOGIN_WINDOW_MS = 5 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 5;
-const loginAttempts = new Map(); // ip -> { count, resetAt }
+// Guardas releem o usuario a cada pedido: reset de 2FA (authEpoch) ou exclusao derrubam a sessao na hora.
+function sessionUser(req) {
+  const s = req.session && req.session.user;
+  if (!s) return null;
+  const u = db.prepare('SELECT id, email, role, authEpoch FROM users WHERE id = ?').get(s.id);
+  return u && u.authEpoch === s.authEpoch ? u : null;
+}
+const requireRole = role => (req, res, next) => {
+  const u = sessionUser(req);
+  if (!u) return res.status(401).json({ error: 'nao autenticado' });
+  if (u.role !== role) return res.status(403).json({ error: 'sem permissao' });
+  req.user = u;
+  next();
+};
+const requireAdmin = requireRole('admin');
+const homeFor = u => (u.role === 'admin' ? '/admin/' : '/minhatela');
+// Express 4 nao captura rejeicao de handler async: sem isso um erro derrubaria o processo.
+const safe = fn => (req, res, next) => fn(req, res, next).catch(next);
+const requireOwner = requireRole('owner'); // usado pelas rotas da /minhatela
+
+// Limite de erros de codigo: 5 em 5 minutos, por conta (u:<id>) e por IP (ip:<ip>).
+const CODE_WINDOW_MS = 5 * 60 * 1000;
+const CODE_MAX_FAILS = 5;
+const codeFails = new Map(); // chave -> { count, resetAt }
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, entry] of loginAttempts) if (now > entry.resetAt) loginAttempts.delete(ip);
-}, LOGIN_WINDOW_MS).unref();
-
-app.post('/api/login', (req, res) => {
-  const ip = req.ip;
+  for (const [k, e] of codeFails) if (now > e.resetAt) codeFails.delete(k);
+}, CODE_WINDOW_MS).unref();
+const isBlocked = keys => keys.some(k => { const e = codeFails.get(k); return e && Date.now() < e.resetAt && e.count >= CODE_MAX_FAILS; });
+function recordFail(keys) {
   const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (entry && now < entry.resetAt && entry.count >= LOGIN_MAX_ATTEMPTS) {
-    return res.status(429).json({ error: `muitas tentativas, tente novamente em ${Math.ceil((entry.resetAt - now) / 1000)}s` });
+  for (const k of keys) {
+    const e = codeFails.get(k);
+    if (e && now < e.resetAt) e.count++;
+    else codeFails.set(k, { count: 1, resetAt: now + CODE_WINDOW_MS });
   }
+}
 
-  const { password } = req.body || {};
-  if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
-    if (entry && now < entry.resetAt) entry.count++;
-    else loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    return res.status(401).json({ error: 'senha invalida' });
-  }
-  loginAttempts.delete(ip);
-  req.session.authenticated = true;
-  res.json({ ok: true });
+app.get('/entrar', (req, res) => res.sendFile(path.join(__dirname, 'public/minhatela/entrar.html')));
+app.use('/minhatela/assets', express.static(path.join(__dirname, 'public/minhatela')));
+
+app.get('/auth/google', (req, res) => {
+  const oauth = { state: crypto.randomBytes(16).toString('hex'), nonce: crypto.randomBytes(16).toString('hex') };
+  req.session.oauth = oauth;
+  res.redirect(google.authUrl(oauth));
 });
+
+app.get('/auth/google/callback', safe(async (req, res) => {
+  const oauth = req.session.oauth;
+  delete req.session.oauth;
+  const { code, state, error } = req.query;
+  if (error || !oauth || typeof code !== 'string' || typeof state !== 'string' || state !== oauth.state) {
+    return res.redirect('/entrar?erro=google');
+  }
+  let claims;
+  try { claims = await google.exchangeCode(code, oauth.nonce); }
+  catch (err) { console.error('Login Google falhou:', err.message); return res.redirect('/entrar?erro=google'); }
+
+  const email = claims.email.toLowerCase();
+  let user = db.prepare('SELECT * FROM users WHERE googleSub = ?').get(claims.sub);
+  if (!user) {
+    // Primeiro login: amarra o sub ao e-mail cadastrado. So amarra se ainda nao tem sub.
+    const byEmail = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (byEmail && byEmail.googleSub === null) {
+      db.prepare('UPDATE users SET googleSub = ? WHERE id = ? AND googleSub IS NULL').run(claims.sub, byEmail.id);
+      user = byEmail;
+    }
+  }
+  if (!user) return res.redirect('/entrar?erro=nao-cadastrado');
+  await regenerate(req, { pending: { userId: user.id } });
+  res.redirect('/entrar');
+}));
+
+app.get('/api/auth/state', safe(async (req, res) => {
+  const me = sessionUser(req);
+  if (me) return res.json({ step: 'done', redirect: homeFor(me) });
+  const pending = req.session.pending;
+  const user = pending && db.prepare('SELECT id, totpEnabledAt FROM users WHERE id = ?').get(pending.userId);
+  if (!user) return res.json({ step: 'google' });
+  if (user.totpEnabledAt) return res.json({ step: 'code' });
+  // Segredo novo so vive na sessao; so vai pro banco quando o codigo for confirmado.
+  pending.enrollSecret = pending.enrollSecret || generateSecret();
+  const email = db.prepare('SELECT email FROM users WHERE id = ?').get(user.id).email;
+  res.json({ step: 'enroll', secret: pending.enrollSecret, qr: await QRCode.toDataURL(otpauthUri(pending.enrollSecret, email)) });
+}));
+
+app.post('/api/auth/verify', safe(async (req, res) => {
+  const pending = req.session.pending;
+  const user = pending && db.prepare('SELECT * FROM users WHERE id = ?').get(pending.userId);
+  if (!user) return res.status(401).json({ error: 'entre com o Google primeiro' });
+  const keys = ['u:' + user.id, 'ip:' + req.ip];
+  if (isBlocked(keys)) return res.status(429).json({ error: 'muitas tentativas, tente de novo em alguns minutos' });
+
+  const code = String((req.body || {}).code ?? '').trim();
+  const now = Date.now();
+  let ok = false;
+  if (user.totpEnabledAt) {
+    const step = verifyTotp(decryptSecret(user.totpSecret, TOTP_KEY), code, now, user.totpLastStep);
+    // O UPDATE condicional garante que dois pedidos simultaneos nao usem o mesmo codigo.
+    ok = step !== null && db.prepare('UPDATE users SET totpLastStep = ? WHERE id = ? AND (totpLastStep IS NULL OR totpLastStep < ?)').run(step, user.id, step).changes === 1;
+  } else if (pending.enrollSecret) {
+    const step = verifyTotp(pending.enrollSecret, code, now, null);
+    ok = step !== null && db.prepare('UPDATE users SET totpSecret = ?, totpEnabledAt = ?, totpLastStep = ? WHERE id = ? AND totpEnabledAt IS NULL')
+      .run(encryptSecret(pending.enrollSecret, TOTP_KEY), now, step, user.id).changes === 1;
+  }
+  if (!ok) {
+    recordFail(keys);
+    return res.status(401).json({ error: 'codigo invalido' });
+  }
+  await regenerate(req, { user: { id: user.id, role: user.role, authEpoch: user.authEpoch } });
+  res.json({ redirect: homeFor(user) });
+}));
+
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
+// So o admin com sessao completa e "autenticado" pro painel Angular.
 app.get('/api/me', (req, res) => {
-  res.json({ authenticated: !!(req.session && req.session.authenticated) });
+  const u = sessionUser(req);
+  res.json({ authenticated: !!u && u.role === 'admin' });
 });
 
 const storage = multer.diskStorage({
@@ -289,30 +406,30 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 
 // ---------- Telas ----------
-app.get('/api/screens', requireAuth, (req, res) => {
+app.get('/api/screens', requireAdmin, (req, res) => {
   res.json(db.prepare('SELECT * FROM screens ORDER BY createdAt').all());
 });
-app.post('/api/screens', requireAuth, (req, res) => {
+app.post('/api/screens', requireAdmin, (req, res) => {
   const s = { id: id(), code: nextScreenCode(), name: req.body.name || 'Tela', location: req.body.location || '', createdAt: Date.now() };
   db.prepare('INSERT INTO screens (id, code, name, location, createdAt) VALUES (?, ?, ?, ?, ?)').run(s.id, s.code, s.name, s.location, s.createdAt);
   res.json(s);
 });
-app.delete('/api/screens/:id', requireAuth, (req, res) => {
+app.delete('/api/screens/:id', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.id);
   db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 // Marca a tela pra recarregar; o player pega isso no proximo heartbeat (ate ~25s).
-app.post('/api/screens/:id/reload', requireAuth, (req, res) => {
+app.post('/api/screens/:id/reload', requireAdmin, (req, res) => {
   db.prepare('UPDATE screens SET reloadAt = ? WHERE id = ?').run(Date.now(), req.params.id);
   res.json({ ok: true });
 });
 
 // ---------- Midias ----------
-app.get('/api/media', requireAuth, (req, res) => {
+app.get('/api/media', requireAdmin, (req, res) => {
   res.json(db.prepare('SELECT * FROM media ORDER BY createdAt').all());
 });
-app.post('/api/media', requireAuth, upload.single('file'), (req, res) => {
+app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'arquivo obrigatorio' });
   const type = req.file.mimetype.startsWith('video') ? 'video' : 'image';
   const m = {
@@ -323,7 +440,7 @@ app.post('/api/media', requireAuth, upload.single('file'), (req, res) => {
     .run(m.id, m.filename, m.originalName, m.type, m.advertiser, m.createdAt);
   res.json(m);
 });
-app.delete('/api/media/:id', requireAuth, (req, res) => {
+app.delete('/api/media/:id', requireAdmin, (req, res) => {
   const m = db.prepare('SELECT * FROM media WHERE id = ?').get(req.params.id);
   if (m) { try { fs.unlinkSync(path.join(UPLOAD_DIR, m.filename)); } catch {} }
   db.prepare('DELETE FROM playlist_items WHERE mediaId = ?').run(req.params.id);
@@ -332,18 +449,18 @@ app.delete('/api/media/:id', requireAuth, (req, res) => {
 });
 
 // ---------- Programacao (playlist por tela) ----------
-app.get('/api/playlists/:screenId', requireAuth, (req, res) => {
+app.get('/api/playlists/:screenId', requireAdmin, (req, res) => {
   const items = db.prepare('SELECT mediaId, duration, startDate, endDate FROM playlist_items WHERE screenId = ? ORDER BY position').all(req.params.screenId);
   res.json(items);
 });
-app.post('/api/playlists/:screenId', requireAuth, (req, res) => {
+app.post('/api/playlists/:screenId', requireAdmin, (req, res) => {
   const { mediaId, duration, startDate, endDate } = req.body;
   const { next } = db.prepare('SELECT COALESCE(MAX(position) + 1, 0) AS next FROM playlist_items WHERE screenId = ?').get(req.params.screenId);
   db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.params.screenId, mediaId, Number(duration) || 10, startDate || null, endDate || null, next);
   res.json({ ok: true });
 });
-app.put('/api/playlists/:screenId', requireAuth, (req, res) => {
+app.put('/api/playlists/:screenId', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.screenId);
   const insert = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
   (req.body.items || []).forEach((item, ix) => {
@@ -403,7 +520,7 @@ app.post('/api/impression', (req, res) => {
   }
   res.json({ ok: true });
 });
-app.get('/api/report', requireAuth, (req, res) => {
+app.get('/api/report', requireAdmin, (req, res) => {
   const { from, to, screenId } = req.query;
   const fromTs = from ? new Date(from).getTime() : 0;
   const toTs = to ? new Date(to).getTime() + 86400000 : Date.now();

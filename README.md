@@ -6,7 +6,7 @@ para anunciantes locais. Sem mensalidade de software: você é o dono.
 ## Componentes
 - **server.js** — backend (Node/Express). Guarda tudo em `data.sqlite` (SQLite, via `node:sqlite`
   nativo do Node — sem dependência extra) e as mídias em `uploads/`. Protege o painel com login
-  por senha única (sessão via cookie).
+  Google + código do Google Authenticator (sessão via cookie).
 - **frontend/** — workspace Angular com dois apps:
   - **admin** — painel: login, cadastra telas, envia mídias, monta a programação, gera relatórios.
   - **player** — o que roda na TV/box. Toca a playlist em loop, registra cada exibição e usa
@@ -18,7 +18,7 @@ para anunciantes locais. Sem mensalidade de software: você é o dono.
 ```bash
 npm install
 npm run build          # builda os dois apps Angular pra public/admin e public/player
-ADMIN_PASSWORD=sua-senha SESSION_SECRET=uma-string-aleatoria npm start
+npm start              # com o .env preenchido (veja Variáveis de ambiente)
 ```
 Abra o painel em: http://localhost:3000/ (redireciona pra `/admin/`)
 
@@ -30,12 +30,23 @@ npm run start:player    # serve o app player em :4200 (rode em outro terminal/po
 ```
 
 ## Variáveis de ambiente
-- `ADMIN_PASSWORD` — senha do painel. **Obrigatória** pra login funcionar; sem ela o servidor sobe mas ninguém consegue entrar.
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` — credenciais OAuth do Google. **Obrigatórias**: sem qualquer uma o servidor registra o erro e não sobe.
+- `ADMIN_EMAIL` — e-mail Google do administrador. **Obrigatória**. Ao subir, o servidor cria essa conta como admin (ou promove, se já existir).
+- `TOTP_ENCRYPTION_KEY` — 64 caracteres hexadecimais que cifram o segredo do Authenticator no banco (o backup do `data.sqlite` vai pro Google Drive). **Obrigatória**. Gere com `openssl rand -hex 32` e guarde: se mudar, todos precisam recadastrar o Authenticator.
 - `SESSION_SECRET` — string usada pra assinar o cookie de sessão. Sem ela, uma é gerada aleatoriamente a cada boot e todo mundo é deslogado ao reiniciar o processo — defina uma fixa em produção.
 - `PORT` — porta do servidor (padrão 3000).
 
+## Login com Google + Authenticator
+1. No [Google Cloud Console](https://console.cloud.google.com/), crie um projeto, configure a **tela de consentimento OAuth** (escopos `openid` e `email`) e publique em produção.
+2. Em *Credenciais*, crie um **ID do cliente OAuth** do tipo *Aplicativo da Web*. Em *URIs de redirecionamento autorizados* registre exatamente o valor de `GOOGLE_REDIRECT_URI`, ex.: `https://pontotela.com.br/auth/google/callback`.
+3. Coloque Client ID, Secret, a URI, `ADMIN_EMAIL` e `TOTP_ENCRYPTION_KEY` no `.env` do servidor.
+4. No primeiro acesso a pessoa entra com o Google, escaneia o QR no Google Authenticator e confirma um código. Nos próximos, informa só o código. Só e-mails já cadastrados entram.
+5. **Perdeu o celular?** No servidor: `node scripts/reset-2fa.js email@da.conta`. Zera o Authenticator, derruba as sessões abertas dela e a conta cadastra de novo no próximo login.
+
+**Ordem obrigatória no deploy:** o push em `master` publica sozinho e a senha antiga deixa de existir. Antes do push, configure o `.env` do servidor com as variáveis acima e registre a URI de callback no Google Cloud. Como as sessões ficam em memória, cada deploy pede novo login.
+
 ## Fluxo de uso
-1. **Login** → entre com a senha definida em `ADMIN_PASSWORD`.
+1. **Login** → "Entrar com Google" e depois o código do Authenticator.
 2. **Telas** → cadastre um ponto (ex.: "Academia X"). Copie o link do player.
 3. **Mídias** → envie a arte/vídeo do anunciante (imagem ou mp4).
 4. **Programação** → escolha a tela, adicione as mídias, defina a duração de cada uma e,
@@ -47,8 +58,8 @@ npm run start:player    # serve o app player em :4200 (rode em outro terminal/po
 ## Colocar no ar de verdade (barato)
 - Suba num servidorzinho (VPS de ~R$20/mês, ou uma máquina sua com IP fixo/no-ip).
 - Rode `npm install && npm run build` a cada deploy (o `build` já builda os dois apps Angular).
-- Use PM2 ou systemd pra manter o processo `node server.js` no ar, com `ADMIN_PASSWORD` e
-  `SESSION_SECRET` definidos no ambiente.
+- Use PM2 ou systemd pra manter o processo `node server.js` no ar, com as variáveis do `.env` (login Google e
+  `SESSION_SECRET`) definidas no ambiente.
 - Coloque um Nginx na frente pra TLS/domínio.
 - Aponte um domínio simples.
 - Em cada box, configure o navegador para abrir a URL do player em kiosk no boot.

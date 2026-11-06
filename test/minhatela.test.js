@@ -1,6 +1,23 @@
-const { test } = require('node:test');
+// Env de teste ANTES de qualquer require do server.js (ele valida as variaveis ao carregar).
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'minhatela-'));
+Object.assign(process.env, {
+  DB_FILE: path.join(TMP, 'test.sqlite'),
+  UPLOAD_DIR: path.join(TMP, 'uploads'),
+  GOOGLE_CLIENT_ID: 'test-client-id',
+  GOOGLE_CLIENT_SECRET: 'test-secret',
+  GOOGLE_REDIRECT_URI: 'http://localhost/auth/google/callback',
+  ADMIN_EMAIL: 'admin@x.com',
+  TOTP_ENCRYPTION_KEY: 'ab'.repeat(32),
+  SESSION_SECRET: 'test-session-secret',
+});
+
+const { test, after } = require('node:test');
 const assert = require('node:assert');
-const { generateSecret, verifyTotp, otpauthUri, encryptSecret, decryptSecret } = require('../lib/totp');
+const { spawnSync } = require('node:child_process');
+const { codeAt, generateSecret, verifyTotp, otpauthUri, encryptSecret, decryptSecret } = require('../lib/totp');
 
 // base32 de "12345678901234567890" (vetor RFC 6238)
 const RFC_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
@@ -36,4 +53,168 @@ test('cifrar e decifrar', () => {
   const buf = Buffer.from(a, 'base64');
   buf[buf.length - 1] ^= 1;
   assert.throws(() => decryptSecret(buf.toString('base64'), key));
+});
+
+// ---------- Login Google + Authenticator ----------
+const { app, db } = require('../server');
+
+const server = app.listen(0);
+const BASE = 'http://127.0.0.1:' + server.address().port;
+const realFetch = globalThis.fetch;
+let nextIdToken = null;
+// So a URL de token do Google e simulada; o resto (nosso proprio servidor) usa o fetch de verdade.
+globalThis.fetch = (url, opts) => String(url).startsWith('https://oauth2.googleapis.com/token')
+  ? Promise.resolve(new Response(JSON.stringify({ id_token: nextIdToken }), { headers: { 'content-type': 'application/json' } }))
+  : realFetch(url, opts);
+after(() => { globalThis.fetch = realFetch; server.close(); db.close(); fs.rmSync(TMP, { recursive: true, force: true }); });
+
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const jwt = (claims) => b64({ alg: 'none' }) + '.' + b64(claims) + '.sig';
+let ipSeq = 0;
+const secrets = {}; // email -> segredo TOTP mostrado no cadastro
+
+// Cliente com jar de cookies manual e IP proprio (X-Forwarded-For), pra o limite por IP nao vazar entre testes.
+function newClient() {
+  const jar = new Map();
+  const ip = '10.0.0.' + (++ipSeq);
+  return {
+    async req(url, { method = 'GET', body } = {}) {
+      const res = await realFetch(BASE + url, {
+        method, redirect: 'manual', body: body && JSON.stringify(body),
+        headers: { 'x-forwarded-for': ip, cookie: [...jar].map(([k, v]) => k + '=' + v).join('; '), ...(body && { 'content-type': 'application/json' }) },
+      });
+      for (const c of res.headers.getSetCookie()) { const [kv] = c.split(';'); const i = kv.indexOf('='); jar.set(kv.slice(0, i), kv.slice(i + 1)); }
+      return res;
+    },
+    async json(url, opts) { const r = await this.req(url, opts); return { status: r.status, ...(await r.json().catch(() => ({}))) }; },
+  };
+}
+
+async function googleStep(email, { sub = 'sub-' + email.toLowerCase(), c = newClient(), state } = {}) {
+  const start = await c.req('/auth/google');
+  assert.strictEqual(start.status, 302);
+  const u = new URL(start.headers.get('location'));
+  assert.strictEqual(u.origin + u.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+  nextIdToken = jwt({ iss: 'https://accounts.google.com', aud: 'test-client-id', exp: Math.floor(Date.now() / 1000) + 600,
+    nonce: u.searchParams.get('nonce'), email, email_verified: true, sub });
+  const cb = await c.req('/auth/google/callback?code=abc&state=' + (state ?? u.searchParams.get('state')));
+  return { c, location: cb.headers.get('location') };
+}
+const wrongCode = (secret) => {
+  const valid = [-1, 0, 1].map((d) => codeAt(secret, Date.now() + d * 30000));
+  return ['000000', '111111', '222222'].find((x) => !valid.includes(x));
+};
+async function loginAs(email, opts) {
+  const { c, location } = await googleStep(email, opts);
+  assert.strictEqual(location, '/entrar');
+  const st = await c.json('/api/auth/state');
+  if (st.step === 'enroll') secrets[email.toLowerCase()] = st.secret;
+  const done = await c.json('/api/auth/verify', { method: 'POST', body: { code: codeAt(secrets[email.toLowerCase()], Date.now()) } });
+  return { c, st, done };
+}
+const addUser = (email, role) => db.prepare('INSERT INTO users (id, email, role, createdAt) VALUES (?, ?, ?, ?)').run(email, email, role, Date.now());
+
+test('state errado ou acesso negado voltam com erro=google', async () => {
+  const bad = await googleStep('a@x.com', { state: 'errado' });
+  assert.strictEqual(bad.location, '/entrar?erro=google');
+  const c = newClient();
+  const start = await c.req('/auth/google');
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const denied = await c.req('/auth/google/callback?error=access_denied&state=' + state);
+  assert.strictEqual(denied.headers.get('location'), '/entrar?erro=google');
+});
+
+test('e-mail nao cadastrado e recusado e nao cria usuario', async () => {
+  const { location } = await googleStep('intruso@x.com');
+  assert.strictEqual(location, '/entrar?erro=nao-cadastrado');
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM users WHERE email = ?').get('intruso@x.com').n, 0);
+});
+
+test('Admin@X.com entra na conta admin@x.com; outro sub com o mesmo e-mail e recusado', async () => {
+  const { st, done } = await loginAs('Admin@X.com', { sub: 'sub-admin' });
+  assert.strictEqual(st.step, 'enroll');
+  assert.strictEqual(done.redirect, '/admin/');
+  assert.strictEqual(db.prepare('SELECT googleSub FROM users WHERE email = ?').get('admin@x.com').googleSub, 'sub-admin');
+  const other = await googleStep('admin@x.com', { sub: 'sub-outro' });
+  assert.strictEqual(other.location, '/entrar?erro=nao-cadastrado');
+});
+
+test('Google sem codigo: API barrada e /api/me falso', async () => {
+  addUser('semcodigo@x.com', 'admin');
+  const { c, location } = await googleStep('semcodigo@x.com');
+  assert.strictEqual(location, '/entrar');
+  assert.strictEqual((await c.json('/api/screens')).status, 401);
+  assert.strictEqual((await c.json('/api/me')).authenticated, false);
+});
+
+test('cadastro nao confirmado nao grava segredo e o proximo login volta a enroll', async () => {
+  addUser('naoconfirma@x.com', 'owner');
+  const a = await googleStep('naoconfirma@x.com');
+  assert.strictEqual((await a.c.json('/api/auth/state')).step, 'enroll');
+  assert.strictEqual(db.prepare('SELECT totpSecret FROM users WHERE email = ?').get('naoconfirma@x.com').totpSecret, null);
+  const b = await googleStep('naoconfirma@x.com');
+  assert.strictEqual((await b.c.json('/api/auth/state')).step, 'enroll');
+});
+
+test('o mesmo codigo nao vale em um segundo login', async () => {
+  addUser('reuso@x.com', 'owner');
+  const first = await loginAs('reuso@x.com');
+  assert.ok(first.done.redirect);
+  const { c } = await googleStep('reuso@x.com');
+  assert.strictEqual((await c.json('/api/auth/state')).step, 'code');
+  const again = await c.json('/api/auth/verify', { method: 'POST', body: { code: codeAt(secrets['reuso@x.com'], Date.now()) } });
+  assert.strictEqual(again.status, 401);
+});
+
+test('o 6o codigo errado recebe 429, mesmo com o certo depois', async () => {
+  addUser('forca@x.com', 'owner');
+  const { c } = await googleStep('forca@x.com');
+  const { secret } = await c.json('/api/auth/state');
+  const bad = { method: 'POST', body: { code: wrongCode(secret) } };
+  for (let i = 0; i < 5; i++) assert.strictEqual((await c.json('/api/auth/verify', bad)).status, 401);
+  assert.strictEqual((await c.json('/api/auth/verify', bad)).status, 429);
+  const good = await c.json('/api/auth/verify', { method: 'POST', body: { code: codeAt(secret, Date.now()) } });
+  assert.strictEqual(good.status, 429);
+});
+
+test('limite por conta vale mesmo trocando de IP', async () => {
+  addUser('conta@x.com', 'owner');
+  await loginAs('conta@x.com'); // cadastra
+  for (let i = 0; i < 5; i++) {
+    const { c } = await googleStep('conta@x.com');
+    assert.strictEqual((await c.json('/api/auth/verify', { method: 'POST', body: { code: wrongCode(secrets['conta@x.com']) } })).status, 401);
+  }
+  const { c } = await googleStep('conta@x.com');
+  assert.strictEqual((await c.json('/api/auth/verify', { method: 'POST', body: { code: wrongCode(secrets['conta@x.com']) } })).status, 429);
+});
+
+test('dono vai para /minhatela e recebe 403 em rota de admin', async () => {
+  addUser('dono@x.com', 'owner');
+  const { c, done } = await loginAs('dono@x.com');
+  assert.strictEqual(done.redirect, '/minhatela');
+  assert.strictEqual((await c.json('/api/screens')).status, 403);
+  assert.strictEqual((await c.json('/api/me')).authenticated, false);
+});
+
+test('POST /api/login nao existe mais', async () => {
+  assert.strictEqual((await newClient().req('/api/login', { method: 'POST', body: { password: 'x' } })).status, 404);
+});
+
+test('reset-2fa derruba a sessao aberta e forca novo cadastro', async () => {
+  addUser('reset@x.com', 'admin');
+  const { c } = await loginAs('reset@x.com');
+  assert.strictEqual((await c.json('/api/screens')).status, 200);
+  const r = spawnSync(process.execPath, [path.join(__dirname, '../scripts/reset-2fa.js'), 'Reset@X.com'], { env: { ...process.env }, cwd: TMP, encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.strictEqual((await c.json('/api/screens')).status, 401);
+  const again = await googleStep('reset@x.com');
+  assert.strictEqual((await again.c.json('/api/auth/state')).step, 'enroll');
+});
+
+test('servidor sem GOOGLE_CLIENT_ID nao sobe e cita a variavel', () => {
+  const env = { ...process.env, PORT: '0' };
+  delete env.GOOGLE_CLIENT_ID;
+  const r = spawnSync(process.execPath, [path.join(__dirname, '../server.js')], { env, cwd: TMP, encoding: 'utf8', timeout: 10000 });
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stderr, /GOOGLE_CLIENT_ID/);
 });

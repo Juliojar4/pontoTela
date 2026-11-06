@@ -115,7 +115,7 @@ input[type="date"] { min-height: 42px; }
 .row > div.tight { flex: 0 0 auto; min-width: 0; }
 
 /* ---------- botões ---------- */
-button.primary {
+button.primary, a.primary {
   font-family: var(--display);
   font-variation-settings: 'wdth' 88;
   font-weight: 700;
@@ -129,7 +129,7 @@ button.primary {
   margin-top: 16px;
   transition: background .15s, border-color .15s;
 }
-button.primary:hover:not(:disabled) { background: var(--green-deep); border-color: var(--green-deep); }
+button.primary:hover:not(:disabled), a.primary:hover { background: var(--green-deep); border-color: var(--green-deep); }
 button.primary:disabled { opacity: .55; cursor: default; }
 .row + button.primary, button.primary.inline { margin-top: 0; }
 

@@ -1,0 +1,13 @@
+:root { --green: #1f8a4c; --ink: #14201a; --muted: #5b6b62; --danger: #b3261e; --bg: #f5f7f6; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+.box { width: 100%; max-width: 360px; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px rgba(0, 0, 0, .08); text-align: center; }
+h1 { margin: 0 0 16px; font-size: 28px; }
+h1 span { color: var(--green); }
+p { margin: 0 0 12px; color: var(--muted); }
+code { word-break: break-all; color: var(--ink); }
+label { display: block; text-align: left; margin-bottom: 4px; font-weight: 600; }
+input { width: 100%; padding: 12px; font-size: 24px; letter-spacing: .3em; text-align: center; border: 1px solid #c9d3ce; border-radius: 8px; margin-bottom: 12px; }
+.btn { display: block; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: var(--green); color: #fff; font: inherit; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; }
+.erro { color: var(--danger); font-weight: 600; }
+[hidden] { display: none !important; }

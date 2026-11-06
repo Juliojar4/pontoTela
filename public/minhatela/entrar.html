@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Entrar - PontoTela</title>
+  <link rel="stylesheet" href="/minhatela/assets/minhatela.css">
+</head>
+<body>
+  <main class="box">
+    <h1>Ponto<span>Tela</span></h1>
+    <p id="erro" class="erro" role="alert" hidden></p>
+
+    <section id="google" hidden>
+      <p>Entre com a sua conta Google.</p>
+      <a class="btn" href="/auth/google">Entrar com Google</a>
+    </section>
+
+    <section id="enroll" hidden>
+      <p>Configure o Google Authenticator: escaneie o QR code ou digite a chave no app.</p>
+      <img id="qr" alt="QR code para o Google Authenticator" width="220" height="220">
+      <p>Chave manual: <code id="secret"></code></p>
+      <p>Depois digite o código de 6 dígitos que o app mostrar.</p>
+    </section>
+
+    <section id="code" hidden>
+      <p>Digite o código de 6 dígitos do Google Authenticator.</p>
+    </section>
+
+    <form id="form" hidden>
+      <label for="codigo">Código</label>
+      <input id="codigo" name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
+      <button class="btn" type="submit">Confirmar</button>
+    </form>
+  </main>
+  <script src="/minhatela/assets/entrar.js"></script>
+</body>
+</html>

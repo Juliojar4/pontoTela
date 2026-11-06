@@ -17,12 +17,6 @@ export class AuthService {
     return res.authenticated;
   }
 
-  async login(password: string): Promise<void> {
-    await firstValueFrom(this.http.post('/api/login', { password }));
-    this.authenticated.set(true);
-    this.checked = true;
-  }
-
   async logout(): Promise<void> {
     await firstValueFrom(this.http.post('/api/logout', {}));
     this.authenticated.set(false);
