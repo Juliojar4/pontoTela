@@ -25,6 +25,9 @@ Disallow: /uploads/
 # Galerias públicas por ponto (QR code): úteis pro cliente na loja, mas são
 # páginas finas e dinâmicas — fora do índice pra não diluir a marca.
 Disallow: /g/
+# Area do dono e login: privadas.
+Disallow: /minhatela/
+Disallow: /entrar
 
 # ---------- Crawlers de IA (AEO) ----------
 # Liberados de propósito: quando alguém pergunta "o que é PontoTela" pro

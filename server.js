@@ -219,6 +219,8 @@ app.use('/tv', express.static(PLAYER_DIR));
 // (sem build) porque abre no celular de quem passa no ponto comercial.
 const GALLERY_DIR = path.join(__dirname, 'public/gallery');
 app.use('/g', express.static(GALLERY_DIR));
+// Pagina do dono. Sem sessao, o proprio JS manda para /entrar (a API responde 401).
+app.use('/minhatela', express.static(path.join(__dirname, 'public/minhatela'), { index: 'index.html' }));
 app.get('/g/:code(\\d+)', (req, res) => {
   if (!resolveScreenId(req.params.code)) return res.status(404).send('Tela nao encontrada');
   res.sendFile(path.join(GALLERY_DIR, 'index.html'));

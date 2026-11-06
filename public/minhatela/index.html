@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Minha tela - PontoTela</title>
+  <link rel="stylesheet" href="/minhatela/assets/minhatela.css">
+</head>
+<body class="app">
+  <header>
+    <div>
+      <h1 id="nome">Minha tela</h1>
+      <p id="contagem"></p>
+    </div>
+    <button class="btn ghost" id="sair" type="button">Sair</button>
+  </header>
+  <main>
+    <select id="picker" aria-label="Escolher tela" hidden></select>
+    <p id="aviso" role="status" hidden></p>
+    <p id="erro" class="erro" role="alert" hidden></p>
+    <p id="vazio" hidden>Nenhuma tela vinculada. Fale com o administrador.</p>
+    <section id="painel" hidden>
+      <ul id="itens"></ul>
+      <button class="btn" id="add" type="button">+ Adicionar imagem</button>
+      <input id="arquivo" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Escolher imagem" hidden>
+      <p class="nota">As mudanças chegam à TV em até 5 minutos.</p>
+    </section>
+  </main>
+  <script src="/minhatela/assets/minhatela.js"></script>
+</body>
+</html>
