@@ -4,6 +4,7 @@
   var screenId = null;
   var state = null;
   var busy = false;
+  var gen = 0; // sobe a cada troca de tela: resposta de uma tela anterior e descartada
 
   function say(el, msg) { el.textContent = msg || ''; el.hidden = !msg; }
   function notice(msg) { say($('aviso'), msg); say($('erro'), ''); }
@@ -23,7 +24,9 @@
   function base() { return '/api/my/screens/' + encodeURIComponent(screenId); }
 
   function load() {
+    var g = gen;
     return api('GET', base()).then(function (r) {
+      if (g !== gen) return;
       if (r.status === 200) render(r.body);
       else fail(r.body.error || 'Não foi possível carregar.');
     });
@@ -34,13 +37,15 @@
   function write(method, path, body, reloadOn, focusKey) {
     if (busy) return Promise.resolve();
     busy = true;
+    var g = gen;
     return api(method, path, body).then(function (r) {
+      if (g !== gen) return;
       if (r.status === 200) { say($('erro'), ''); say($('aviso'), ''); render(r.body, focusKey); return; }
       if (reloadOn.indexOf(r.status) >= 0) notice('A lista mudou. Atualizamos para você.');
       else fail(r.body.error || 'Algo deu errado. Tente de novo.');
       return load();
-    }).catch(function () { fail('Falha de conexão. Tente de novo.'); return load().catch(function () {}); })
-      .then(function () { busy = false; $('add').disabled = !state || state.used >= state.limit; });
+    }).catch(function () { if (g !== gen) return; fail('Falha de conexão. Tente de novo.'); return load().catch(function () {}); })
+      .then(function () { if (g !== gen) return; busy = false; $('add').disabled = !state || state.used >= state.limit; });
   }
 
   function thumb(it) {
@@ -205,6 +210,7 @@
   });
   $('picker').addEventListener('change', function () {
     screenId = $('picker').value;
+    gen++; busy = false;
     say($('aviso'), ''); say($('erro'), '');
     load();
   });
