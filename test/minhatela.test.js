@@ -204,9 +204,15 @@ test('reset-2fa derruba a sessao aberta e forca novo cadastro', async () => {
   addUser('reset@x.com', 'admin');
   const { c } = await loginAs('reset@x.com');
   assert.strictEqual((await c.json('/api/screens')).status, 200);
+  const parked = (await googleStep('reset@x.com')).c; // passou pelo Google e parou no passo do codigo
+  assert.strictEqual((await parked.json('/api/auth/state')).step, 'code');
   const r = spawnSync(process.execPath, [path.join(__dirname, '../scripts/reset-2fa.js'), 'Reset@X.com'], { env: { ...process.env }, cwd: TMP, encoding: 'utf8' });
   assert.strictEqual(r.status, 0, r.stderr);
   assert.strictEqual((await c.json('/api/screens')).status, 401);
+  assert.strictEqual((await parked.json('/api/auth/state')).step, 'google');
+  const stale = await parked.json('/api/auth/verify', { method: 'POST', body: { code: codeAt(secrets['reset@x.com'], Date.now()) } });
+  assert.strictEqual(stale.status, 401);
+  assert.strictEqual((await parked.json('/api/screens')).status, 401);
   const again = await googleStep('reset@x.com');
   assert.strictEqual((await again.c.json('/api/auth/state')).step, 'enroll');
 });

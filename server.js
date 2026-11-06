@@ -272,7 +272,7 @@ app.get('/admin/*', (req, res) => res.sendFile(path.join(__dirname, 'public/admi
 // ---------- Autenticacao: Google + Authenticator ----------
 // Tres estados na sessao, nunca misturados (regenerate a cada etapa):
 //   oauth   { state, nonce }        entre /auth/google e o callback
-//   pending { userId, enrollSecret? } Google ok, falta o codigo: so /api/auth/* enxerga
+//   pending { userId, authEpoch, enrollSecret? } Google ok, falta o codigo: so /api/auth/* enxerga
 //   user    { id, role, authEpoch }   logado de verdade
 const regenerate = (req, data) => new Promise((resolve, reject) =>
   req.session.regenerate(err => { if (err) return reject(err); Object.assign(req.session, data); resolve(); }));
@@ -346,16 +346,26 @@ app.get('/auth/google/callback', safe(async (req, res) => {
     }
   }
   if (!user) return res.redirect('/entrar?erro=nao-cadastrado');
-  await regenerate(req, { pending: { userId: user.id } });
+  await regenerate(req, { pending: { userId: user.id, authEpoch: user.authEpoch } });
   res.redirect('/entrar');
 }));
+
+// Usuario do passo "Google ok". Se o authEpoch mudou (reset-2fa), a sessao nao passou mais pelo Google: descarta.
+function pendingUser(req) {
+  const pending = req.session.pending;
+  if (!pending) return null;
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(pending.userId);
+  if (user && user.authEpoch === pending.authEpoch) return user;
+  delete req.session.pending;
+  return null;
+}
 
 app.get('/api/auth/state', safe(async (req, res) => {
   const me = sessionUser(req);
   if (me) return res.json({ step: 'done', redirect: homeFor(me) });
-  const pending = req.session.pending;
-  const user = pending && db.prepare('SELECT id, totpEnabledAt FROM users WHERE id = ?').get(pending.userId);
+  const user = pendingUser(req);
   if (!user) return res.json({ step: 'google' });
+  const pending = req.session.pending;
   if (user.totpEnabledAt) return res.json({ step: 'code' });
   // Segredo novo so vive na sessao; so vai pro banco quando o codigo for confirmado.
   pending.enrollSecret = pending.enrollSecret || generateSecret();
@@ -364,8 +374,8 @@ app.get('/api/auth/state', safe(async (req, res) => {
 }));
 
 app.post('/api/auth/verify', safe(async (req, res) => {
+  const user = pendingUser(req);
   const pending = req.session.pending;
-  const user = pending && db.prepare('SELECT * FROM users WHERE id = ?').get(pending.userId);
   if (!user) return res.status(401).json({ error: 'entre com o Google primeiro' });
   const keys = ['u:' + user.id, 'ip:' + req.ip];
   if (isBlocked(keys)) return res.status(429).json({ error: 'muitas tentativas, tente de novo em alguns minutos' });
