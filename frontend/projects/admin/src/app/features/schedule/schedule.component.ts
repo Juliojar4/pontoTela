@@ -34,14 +34,14 @@ import { MediaPickerComponent } from '../../shared/media-picker.component';
       <div class="card">
         <h2>Adicionar à programação</h2>
         <div class="row">
-          <div>
+          <div class="media-field">
             <label>Mídia</label>
-            <app-media-picker [items]="media()" [value]="mediaId" (valueChange)="mediaId = $event" />
+            <app-media-picker [items]="media()" [value]="mediaIds" (valueChange)="mediaIds = $event" (uploaded)="media.update((l) => [...l, $event])" />
           </div>
           <div><label>Duração (s)</label><input type="number" [(ngModel)]="duration" /></div>
           <div><label>Início (opcional)</label><input type="date" [(ngModel)]="startDate" /></div>
           <div><label>Fim (opcional)</label><input type="date" [(ngModel)]="endDate" /></div>
-          <div class="tight"><button class="primary inline" (click)="addToPlaylist()">Adicionar</button></div>
+          <div class="tight"><button class="primary inline" [disabled]="adding()" (click)="addToPlaylist()">{{ adding() ? 'Adicionando…' : 'Adicionar' }}</button></div>
         </div>
       </div>
 
@@ -161,6 +161,7 @@ import { MediaPickerComponent } from '../../shared/media-picker.component';
     .cell-input { width: auto; min-width: 92px; padding: 6px 9px; font-size: 14px; }
     .field .muted { padding: 6px 0; }
 
+    .media-field { flex: 2 1 340px; }
     @media (max-width: 640px) {
       .screen-pick { width: 100%; }
       .screen-pick select { flex: 1; min-width: 0; }
@@ -176,7 +177,8 @@ export class ScheduleComponent implements OnInit {
   readonly list = signal<PlaylistItem[]>([]);
   readonly editingIndex = signal<number | null>(null);
   screenId = '';
-  mediaId = '';
+  mediaIds: string[] = [];
+  readonly adding = signal(false);
   duration = 10;
   startDate = '';
   endDate = '';
@@ -257,14 +259,29 @@ export class ScheduleComponent implements OnInit {
   }
 
   async addToPlaylist(): Promise<void> {
-    if (!this.mediaId) { this.ui.toast('Envie uma mídia primeiro', 'error'); return; }
-    await this.playlistsService.add(this.screenId, {
-      mediaId: this.mediaId,
-      duration: Number(this.duration) || 10,
-      startDate: this.startDate || null,
-      endDate: this.endDate || null,
-    });
-    this.ui.toast('Adicionado à programação.', 'success');
+    if (!this.mediaIds.length) { this.ui.toast('Selecione uma mídia primeiro', 'error'); return; }
+    const ids = this.mediaIds;
+    let added = 0;
+    this.adding.set(true);
+    try {
+      // Em sequência para manter na programação a ordem em que foram marcadas.
+      for (const mediaId of ids) {
+        await this.playlistsService.add(this.screenId, {
+          mediaId,
+          duration: Number(this.duration) || 10,
+          startDate: this.startDate || null,
+          endDate: this.endDate || null,
+        });
+        added++;
+      }
+      this.ui.toast(added === 1 ? 'Adicionado à programação.' : `${added} mídias adicionadas à programação.`, 'success');
+    } catch {
+      // Tira as que já entraram para que tentar de novo não as duplique.
+      this.mediaIds = ids.slice(added);
+      this.ui.toast(`Falha ao adicionar: ${added} de ${ids.length} entraram na programação.`, 'error');
+    } finally {
+      this.adding.set(false);
+    }
     await this.loadList();
   }
 
