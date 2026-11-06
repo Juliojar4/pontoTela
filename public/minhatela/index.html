@@ -4,16 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0e6a3a">
   <title>Minha tela - PontoTela</title>
+  <link rel="icon" href="/tv/favicon.ico" sizes="any">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Source+Sans+3:wght@400;600&display=swap">
   <link rel="stylesheet" href="/minhatela/assets/minhatela.css">
 </head>
 <body class="app">
   <header>
-    <div>
+    <div class="topo">
       <h1 id="nome">Minha tela</h1>
-      <p id="contagem"></p>
+      <button class="sair" id="sair" type="button">
+        Sair
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5M4 12h11M11 8l4 4-4 4"/></svg>
+      </button>
     </div>
-    <button class="btn ghost" id="sair" type="button">Sair</button>
+    <!-- Cada vaga de imagem e uma telinha: acesa quando esta em uso. -->
+    <div class="vagas" id="vagas" aria-hidden="true" hidden></div>
+    <p id="contagem"></p>
   </header>
   <main>
     <select id="picker" aria-label="Escolher tela" hidden></select>
@@ -22,7 +32,11 @@
     <p id="vazio" hidden>Nenhuma tela vinculada. Fale com o administrador.</p>
     <section id="painel" hidden>
       <ul id="itens"></ul>
-      <button class="btn" id="add" type="button">+ Adicionar imagem</button>
+      <p class="semnada" id="semnada" hidden>Sua tela ainda não tem imagens. Adicione a primeira.</p>
+      <button class="btn" id="add" type="button">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar imagem
+      </button>
       <input id="arquivo" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Escolher imagem" hidden>
       <p class="nota">As mudanças chegam à TV em até 5 minutos.</p>
     </section>

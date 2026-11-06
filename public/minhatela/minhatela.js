@@ -65,9 +65,18 @@
     return el;
   }
 
-  function button(cls, text, label, fn) {
+  // Icones fixos do codigo (nenhum dado do usuario passa por aqui).
+  var ICONS = {
+    grip: '<svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="6" cy="3.5" r="1.6"/><circle cx="12" cy="3.5" r="1.6"/><circle cx="6" cy="9" r="1.6"/><circle cx="12" cy="9" r="1.6"/><circle cx="6" cy="14.5" r="1.6"/><circle cx="12" cy="14.5" r="1.6"/></svg>',
+    up: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+    down: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
+    trash: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 11v5M14 11v5"/></svg>',
+    lock: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+  };
+
+  function button(cls, icon, label, fn) {
     var b = document.createElement('button');
-    b.type = 'button'; b.className = cls; b.textContent = text;
+    b.type = 'button'; b.className = cls; b.innerHTML = ICONS[icon];
     if (label) b.setAttribute('aria-label', label);
     b.addEventListener('click', fn);
     return b;
@@ -75,9 +84,9 @@
 
   function row(it, i, n) {
     var li = document.createElement('li');
-    li.className = 'row';
+    li.className = it.kind === 'own' ? 'row' : 'row ad';
     li.dataset.id = it.itemId;
-    var handle = button('handle', '☰', 'Arrastar para reordenar', function () {});
+    var handle = button('handle', 'grip', 'Arrastar para reordenar', function () {});
     handle.addEventListener('pointerdown', function (e) { startDrag(e, li); });
     var info = document.createElement('div');
     info.className = 'info';
@@ -98,7 +107,7 @@
       sel.addEventListener('change', function () {
         write('PATCH', base() + '/items/' + it.itemId, { duration: Number(sel.value) }, [404]);
       });
-      var del = button('del', 'Excluir', 'Excluir ' + it.originalName, function () {
+      var del = button('del', 'trash', 'Excluir ' + it.originalName, function () {
         if (confirm('Excluir esta imagem?')) write('DELETE', base() + '/items/' + it.itemId, null, [404]);
       });
       ctrl.append(sel, del);
@@ -106,13 +115,13 @@
     } else {
       var lock = document.createElement('span');
       lock.className = 'lock';
-      lock.textContent = '🔒 Anúncio';
+      lock.innerHTML = ICONS.lock + 'Anúncio';
       info.append(lock);
     }
     var tools = document.createElement('div');
     tools.className = 'tools';
-    var up = button('up', '↑', 'Mover para cima', function () { move(i, i - 1, 'up'); });
-    var down = button('down', '↓', 'Mover para baixo', function () { move(i, i + 1, 'down'); });
+    var up = button('up', 'up', 'Mover para cima', function () { move(i, i - 1, 'up'); });
+    var down = button('down', 'down', 'Mover para baixo', function () { move(i, i + 1, 'down'); });
     up.disabled = i === 0; down.disabled = i === n - 1;
     tools.append(up, down);
     li.append(handle, thumb(it), info, tools);
@@ -124,6 +133,15 @@
     var cur = screens.filter(function (s) { return s.id === screenId; })[0];
     $('nome').textContent = cur ? cur.name : 'Minha tela';
     $('contagem').textContent = st.used + ' de ' + st.limit + ' imagens suas';
+    var vagas = $('vagas');
+    vagas.textContent = '';
+    vagas.hidden = false;
+    for (var v = 0; v < st.limit; v++) {
+      var vaga = document.createElement('i');
+      if (v < st.used) vaga.className = 'on';
+      vagas.appendChild(vaga);
+    }
+    $('semnada').hidden = st.items.length > 0;
     var ul = $('itens');
     ul.textContent = '';
     st.items.forEach(function (it, i) { ul.appendChild(row(it, i, st.items.length)); });

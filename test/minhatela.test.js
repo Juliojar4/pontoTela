@@ -218,8 +218,8 @@ test('reset-2fa derruba a sessao aberta e forca novo cadastro', async () => {
 });
 
 test('servidor sem GOOGLE_CLIENT_ID nao sobe e cita a variavel', () => {
-  const env = { ...process.env, PORT: '0' };
-  delete env.GOOGLE_CLIENT_ID;
+  // Vazia, e nao ausente: o dotenv preencheria a ausente com o .env real de quem roda o teste.
+  const env = { ...process.env, PORT: '0', GOOGLE_CLIENT_ID: '' };
   const r = spawnSync(process.execPath, [path.join(__dirname, '../server.js')], { env, cwd: TMP, encoding: 'utf8', timeout: 10000 });
   assert.strictEqual(r.status, 1);
   assert.match(r.stderr, /GOOGLE_CLIENT_ID/);
