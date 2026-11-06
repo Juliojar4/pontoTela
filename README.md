@@ -32,7 +32,7 @@ npm run start:player    # serve o app player em :4200 (rode em outro terminal/po
 ## Variáveis de ambiente
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` — credenciais OAuth do Google. **Obrigatórias**: sem qualquer uma o servidor registra o erro e não sobe.
 - `ADMIN_EMAIL` — e-mail Google do administrador. **Obrigatória**. Ao subir, o servidor cria essa conta como admin (ou promove, se já existir).
-- `TOTP_ENCRYPTION_KEY` — 64 caracteres hexadecimais que cifram o segredo do Authenticator no banco (o backup do `data.sqlite` vai pro Google Drive). **Obrigatória**. Gere com `openssl rand -hex 32` e guarde: se mudar, todos precisam recadastrar o Authenticator.
+- `TOTP_ENCRYPTION_KEY` — 64 caracteres hexadecimais que cifram o segredo do Authenticator no banco (o backup do `data.sqlite` vai pro Google Drive). **Obrigatória**. Gere com `openssl rand -hex 32` e guarde: se mudar, os segredos já gravados deixam de abrir, então rode `scripts/reset-2fa.js` para cada conta (todas recadastram o Authenticator).
 - `SESSION_SECRET` — string usada pra assinar o cookie de sessão. Sem ela, uma é gerada aleatoriamente a cada boot e todo mundo é deslogado ao reiniciar o processo — defina uma fixa em produção.
 - `PORT` — porta do servidor (padrão 3000).
 
@@ -44,6 +44,14 @@ npm run start:player    # serve o app player em :4200 (rode em outro terminal/po
 5. **Perdeu o celular?** No servidor: `node scripts/reset-2fa.js email@da.conta`. Zera o Authenticator, derruba as sessões abertas dela e a conta cadastra de novo no próximo login.
 
 **Ordem obrigatória no deploy:** o push em `master` publica sozinho e a senha antiga deixa de existir. Antes do push, configure o `.env` do servidor com as variáveis acima e registre a URI de callback no Google Cloud. Como as sessões ficam em memória, cada deploy pede novo login.
+
+## Publicação
+Siga esta ordem. O push em `master` publica sozinho e remove a senha antiga.
+1. Registre `http://localhost:3000/auth/google/callback` como segunda URI no Google Cloud e faça o login completo localmente, com credenciais reais.
+2. Preencha o `.env` do servidor, confirme que `pm2 describe dooh` mostra `exec cwd` como `/root/dooh-cms` e rode `scripts/backup.sh`.
+3. Faça o push e entre como admin na hora, com uma sessão SSH aberta: o `reset-2fa.js` precisa dela se algo falhar no cadastro do Authenticator.
+4. Reinicie o app em cada TV uma vez: uma TV em tela cheia rebusca a lista, mas não recarrega o `player.js`.
+5. Teste o arrastar em um celular de verdade e a lista vazia em uma TV de verdade, com e sem internet.
 
 ## Fluxo de uso
 1. **Login** → "Entrar com Google" e depois o código do Authenticator.

@@ -17,6 +17,8 @@ jobs:
           script: |
             set -e
             cd /root/dooh-cms
+            # Sem estas variáveis o app novo não sobe e a senha antiga já não existe: aborta antes de mexer em qualquer coisa.
+            for v in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI ADMIN_EMAIL TOTP_ENCRYPTION_KEY; do grep -q "^$v=." .env || { echo "falta $v no .env"; exit 1; }; done
             echo ">> Puxando código novo..."
             git fetch --all
             git reset --hard origin/master
@@ -26,4 +28,7 @@ jobs:
             cd frontend && npm install && npm run build && cd ..
             echo ">> Reiniciando o app..."
             pm2 restart dooh
+            echo ">> Conferindo se o app subiu..."
+            sleep 3
+            curl -fsS http://localhost:${PORT:-3000}/api/me > /dev/null
             echo ">> Deploy concluído com sucesso."

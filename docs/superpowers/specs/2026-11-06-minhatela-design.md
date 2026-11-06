@@ -113,9 +113,11 @@ e checagem em `pragma_table_info`).
 ## Pontos do código existente que mudam
 
 - `PUT /api/playlists/:screenId` apaga e recria a lista a partir do que o painel carregou antes.
-  **[escolha do desenho]** Toda leitura da lista devolve uma versão e toda gravação a confere,
-  tanto no admin quanto no dono: lista desatualizada responde 409, nada é gravado e a tela avisa
-  e recarrega. Nenhum dado é perdido quando os dois editam ao mesmo tempo.
+  **[escolha do desenho]** Toda leitura da lista devolve uma versão. A reordenação do dono e todo
+  `PUT` do admin a conferem: lista desatualizada responde 409, nada é gravado e a tela avisa e
+  recarrega. Adicionar, editar e apagar do dono agem sobre ids de item e respondem 404 quando o
+  item já não existe; o `POST` do admin só acrescenta ao fim. Nenhum dado é perdido quando os
+  dois editam ao mesmo tempo.
 - A reordenação do dono usa uma rota própria que aceita apenas uma permutação exata da lista
   atual, sem alterar duração nem datas de anúncio.
 - A remoção de imagem de dono pelo admin usa rota própria, que apaga registro, item da lista e

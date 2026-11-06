@@ -334,7 +334,7 @@ async function ownerSetup() {
   const email = 'dono' + (++ownerSeq) + '@x.com';
   addUser(email, 'owner');
   const sid = 'os' + ownerSeq;
-  db.prepare('INSERT INTO screens (id, code, name, createdAt, ownerId) VALUES (?, ?, ?, ?, ?)').run(sid, 900 + ownerSeq, 'Tela ' + sid, Date.now(), email);
+  db.prepare('INSERT INTO screens (id, code, name, createdAt, ownerId) VALUES (?, ?, ?, ?, ?)').run(sid, db.prepare('SELECT COALESCE(MAX(code), 0) + 1 AS n FROM screens').get().n, 'Tela ' + sid, Date.now(), email);
   const { c } = await loginAs(email);
   const base = '/api/my/screens/' + sid;
   const upload = (buf = PNG, { name = 'a.png', type = 'image/png' } = {}) => {
@@ -580,4 +580,65 @@ test('dono recebe 403 nas tres rotas de gestao', async () => {
   assert.strictEqual((await o.json('/api/screens/' + sid + '/owner', { method: 'PUT', body: { email: 'x@x.com' } })).status, 403);
   assert.strictEqual((await o.json('/api/users/x/reset-2fa', { method: 'POST' })).status, 403);
   assert.strictEqual((await o.json('/api/users/x', { method: 'DELETE' })).status, 403);
+});
+
+// ---------- Rodada final de revisao ----------
+test('id_token com claim ruim termina em erro=google (a assinatura nao e conferida, so as claims)', async () => {
+  const now = () => Math.floor(Date.now() / 1000);
+  const cases = {
+    'iss errado': { iss: 'https://evil.example' },
+    'aud errado': { aud: 'outro-client' },
+    'exp vencido': { exp: now() - 10 },
+    'nonce errado': { nonce: 'outro-nonce' },
+    'e-mail nao verificado': { email_verified: false },
+  };
+  addUser('claims@x.com', 'owner');
+  const realError = console.error;
+  console.error = () => {}; // o servidor loga cada recusa; aqui sao esperadas
+  try {
+  for (const [nome, bad] of Object.entries(cases)) {
+    const c = newClient();
+    const start = await c.req('/auth/google');
+    const u = new URL(start.headers.get('location'));
+    nextIdToken = jwt({ iss: 'https://accounts.google.com', aud: 'test-client-id', exp: now() + 600,
+      nonce: u.searchParams.get('nonce'), email: 'claims@x.com', email_verified: true, sub: 'sub-claims', ...bad });
+    const cb = await c.req('/auth/google/callback?code=abc&state=' + u.searchParams.get('state'));
+    assert.strictEqual(cb.headers.get('location'), '/entrar?erro=google', nome);
+    assert.strictEqual((await c.json('/api/auth/state')).step, 'google', nome);
+  }
+  } finally { console.error = realError; }
+  assert.strictEqual(db.prepare('SELECT googleSub FROM users WHERE email = ?').get('claims@x.com').googleSub, null);
+});
+
+test('nome de arquivo com acento chega inteiro na API do dono', async () => {
+  const { upload } = await ownerSetup();
+  const r = await upload(PNG, { name: 'promoção açaí.png' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.items[0].originalName, 'promoção açaí.png');
+});
+
+test('impressao com mediaId que nao e string nao da 500 e grava como texto', async () => {
+  const { c, screen, ad } = await setup();
+  const a = ad('ad-arr');
+  const before = db.prepare('SELECT COUNT(*) AS n FROM impressions').get().n;
+  for (const mediaId of [{ x: 1 }, [{ x: 1 }], 42]) {
+    assert.strictEqual((await c.json('/api/impression', { method: 'POST', body: { screenId: screen.id, mediaId } })).status, 200);
+  }
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM impressions').get().n, before);
+  assert.strictEqual((await c.json('/api/impression', { method: 'POST', body: { screenId: screen.id, mediaId: [a] } })).status, 200);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM impressions WHERE mediaId = ?').get(a).n, 1);
+});
+
+test('DELETE /api/screens apaga o dono que ficou sem telas e preserva o que ainda tem outra', async () => {
+  const { c } = await setup();
+  let n = 0;
+  const mk = (sid, owner) => db.prepare('INSERT INTO screens (id, code, name, createdAt, ownerId) VALUES (?, ?, ?, ?, ?)').run(sid, db.prepare("SELECT COALESCE(MAX(code), 0) + 1 AS n FROM screens").get().n, sid, Date.now(), owner);
+  addUser('solo@x.com', 'owner'); addUser('duo@x.com', 'owner');
+  mk('solo1', 'solo@x.com'); mk('duo1', 'duo@x.com'); mk('duo2', 'duo@x.com');
+  assert.strictEqual((await c.json('/api/screens/solo1', { method: 'DELETE' })).status, 200);
+  assert.strictEqual(db.prepare('SELECT 1 FROM users WHERE id = ?').get('solo@x.com'), undefined);
+  assert.strictEqual((await c.json('/api/screens/duo1', { method: 'DELETE' })).status, 200);
+  assert.ok(db.prepare('SELECT 1 FROM users WHERE id = ?').get('duo@x.com'));
+  assert.strictEqual((await c.json('/api/screens/duo2', { method: 'DELETE' })).status, 200);
+  assert.strictEqual(db.prepare('SELECT 1 FROM users WHERE id = ?').get('duo@x.com'), undefined);
 });

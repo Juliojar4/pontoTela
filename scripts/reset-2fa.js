@@ -1,7 +1,7 @@
 // Uso (no servidor): node scripts/reset-2fa.js <email>
 // Zera o Authenticator da conta e derruba as sessoes abertas dela (authEpoch + 1).
-require('dotenv').config();
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env'), quiet: true });
 const { DatabaseSync } = require('node:sqlite');
 
 const email = (process.argv[2] || '').trim().toLowerCase();

@@ -1,10 +1,10 @@
-require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const { imageType } = require('./lib/image-type');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 const QRCode = require('qrcode');
@@ -153,6 +153,14 @@ function inTx(fn) {
   try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
 }
 const id = () => crypto.randomBytes(6).toString('hex');
+// Conta de dono sem nenhuma tela some junto (chamar dentro da transacao).
+function dropOwnerIfOrphan(userId) {
+  if (userId && !db.prepare('SELECT 1 FROM screens WHERE ownerId = ?').get(userId)) {
+    db.prepare("DELETE FROM users WHERE id = ? AND role = 'owner'").run(userId);
+  }
+}
+// multer entrega o nome em latin1 (defParamCharset nao chega ate o busboy instalado): reinterpreta como UTF-8.
+const uploadName = (file) => Buffer.from(file.originalname, 'latin1').toString('utf8');
 // O admin nasce (ou e promovido) a partir de ADMIN_EMAIL a cada subida.
 db.prepare("INSERT INTO users (id, email, role, createdAt) VALUES (?, ?, 'admin', ?) ON CONFLICT(email) DO UPDATE SET role = 'admin'")
   .run(crypto.randomBytes(6).toString('hex'), ADMIN_EMAIL, Date.now());
@@ -448,10 +456,7 @@ app.put('/api/screens/:id/owner', requireAdmin, (req, res) => {
       db.prepare("INSERT INTO users (id, email, role, createdAt) VALUES (?, ?, 'owner', ?)").run(owner.id, email, Date.now());
     }
     db.prepare('UPDATE screens SET ownerId = ? WHERE id = ?').run(owner.id, req.params.id);
-    const prev = screen.ownerId;
-    if (prev && prev !== owner.id && !db.prepare('SELECT 1 FROM screens WHERE ownerId = ?').get(prev)) {
-      db.prepare("DELETE FROM users WHERE id = ? AND role = 'owner'").run(prev);
-    }
+    if (screen.ownerId !== owner.id) dropOwnerIfOrphan(screen.ownerId);
     return { status: 200 };
   });
   res.status(result.status).json(result.error ? { error: result.error } : { ok: true });
@@ -482,10 +487,12 @@ app.post('/api/screens', requireAdmin, (req, res) => {
 });
 app.delete('/api/screens/:id', requireAdmin, (req, res) => {
   const owned = db.prepare('SELECT filename FROM media WHERE ownerScreenId = ?').all(req.params.id);
+  const screen = db.prepare('SELECT ownerId FROM screens WHERE id = ?').get(req.params.id);
   inTx(() => {
     db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.id);
     db.prepare('DELETE FROM media WHERE ownerScreenId = ?').run(req.params.id);
     db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
+    dropOwnerIfOrphan(screen?.ownerId);
   });
   owned.forEach(m => unlinkUpload(m.filename));
   res.json({ ok: true });
@@ -504,7 +511,7 @@ app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'arquivo obrigatorio' });
   const type = req.file.mimetype.startsWith('video') ? 'video' : 'image';
   const m = {
-    id: id(), filename: req.file.filename, originalName: req.file.originalname,
+    id: id(), filename: req.file.filename, originalName: uploadName(req.file),
     type, advertiser: req.body.advertiser || '', createdAt: Date.now()
   };
   db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
@@ -644,16 +651,22 @@ app.post('/api/my/screens/:id/images', ownerGuard, (req, res, next) => {
   const filename = id() + '.' + ext;
   fs.renameSync(tmp, path.join(UPLOAD_DIR, filename));
   // Sem await daqui ate o COMMIT: a contagem e o INSERT nao se intercalam com outro envio.
-  const ok = inTx(() => {
-    if (ownerState(req.screen.id).used >= OWNER_LIMIT) return false;
-    const mediaId = id();
-    db.prepare("INSERT INTO media (id, filename, originalName, type, ownerScreenId, createdAt) VALUES (?, ?, ?, 'image', ?, ?)")
-      .run(mediaId, filename, req.file.originalname, req.screen.id, Date.now());
-    db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, position) VALUES (?, ?, 7, (SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_items WHERE screenId = ?))')
-      .run(req.screen.id, mediaId, req.screen.id);
-    return true;
-  });
-  if (!ok) { unlinkUpload(filename); return res.status(409).json({ error: 'Limite de ' + OWNER_LIMIT + ' imagens atingido.' }); }
+  // O dono pode ter perdido a tela enquanto o multer gravava: confere de novo dentro da transacao.
+  let ok;
+  try {
+    ok = inTx(() => {
+      if (!db.prepare('SELECT 1 FROM screens WHERE id = ? AND ownerId = ?').get(req.screen.id, req.user.id)) return 404;
+      if (ownerState(req.screen.id).used >= OWNER_LIMIT) return 409;
+      const mediaId = id();
+      db.prepare("INSERT INTO media (id, filename, originalName, type, ownerScreenId, createdAt) VALUES (?, ?, ?, 'image', ?, ?)")
+        .run(mediaId, filename, uploadName(req.file), req.screen.id, Date.now());
+      db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, position) VALUES (?, ?, 7, (SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_items WHERE screenId = ?))')
+        .run(req.screen.id, mediaId, req.screen.id);
+      return 200;
+    });
+  } catch (e) { unlinkUpload(filename); throw e; }
+  if (ok === 404) { unlinkUpload(filename); return res.status(404).json({ error: 'tela nao encontrada' }); }
+  if (ok === 409) { unlinkUpload(filename); return res.status(409).json({ error: 'Limite de ' + OWNER_LIMIT + ' imagens atingido.' }); }
   res.json(ownerState(req.screen.id));
 });
 app.patch('/api/my/screens/:id/items/:itemId', ownerGuard, (req, res) => {
@@ -734,7 +747,7 @@ app.post('/api/impression', (req, res) => {
   // So midia que existe e e do admin: imagem de dono nao entra na prova do anunciante.
   const counts = resolved && mediaId && db.prepare('SELECT 1 FROM media WHERE id = ? AND ownerScreenId IS NULL').get(String(mediaId));
   if (counts) {
-    db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)').run(resolved, mediaId, Date.now());
+    db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)').run(resolved, String(mediaId), Date.now());
   }
   res.json({ ok: true });
 });

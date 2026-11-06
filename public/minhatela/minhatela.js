@@ -147,7 +147,7 @@
   }
 
   // Arrastar pelo ☰ com Pointer Events: a linha acompanha o dedo e as outras abrem espaço;
-  // a ordem so e enviada ao soltar. ponytail: sem rolagem automatica, a lista cabe na tela.
+  // a ordem so e enviada ao soltar. ponytail: a lista pode passar da tela e nao ha rolagem automatica durante o arraste; os botoes ↑↓ cobrem esse caso.
   function startDrag(e, li) {
     if (busy || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.preventDefault();
@@ -198,6 +198,7 @@
     var f = $('arquivo').files[0];
     $('arquivo').value = '';
     if (!f) return;
+    if (busy) { fail('Ainda salvando a alteração anterior. Escolha a imagem de novo em instantes.'); return; }
     var fd = new FormData();
     fd.append('file', f);
     $('add').disabled = true;
