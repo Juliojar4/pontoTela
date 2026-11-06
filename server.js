@@ -10,9 +10,9 @@ const { DatabaseSync } = require('node:sqlite');
 const app = express();
 app.set('trust proxy', 1); // atras do Caddy: confia no X-Forwarded-For do 1o hop pra pegar o IP real
 const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(__dirname, 'data.sqlite');
+const DB_FILE = process.env.DB_FILE || path.join(__dirname, 'data.sqlite');
 const LEGACY_DATA_FILE = path.join(__dirname, 'data.json');
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
@@ -426,7 +426,9 @@ app.get('/api/report', requireAuth, (req, res) => {
   res.json({ total, byAdvertiser: byAdv });
 });
 
-app.listen(PORT, () => {
+if (require.main === module) app.listen(PORT, () => {
   console.log('CMS no ar: http://localhost:' + PORT);
   console.log('Painel:     http://localhost:' + PORT + '/admin/');
 });
+
+module.exports = { app, db };
