@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
+const { imageType } = require('./lib/image-type');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -473,13 +474,14 @@ app.delete('/api/media/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 // Remove imagem do dono: item da lista, registro e arquivo. Devolve a tela, ou null se nao for imagem de dono.
-function removeOwnerMedia(mediaId) {
+// reload=false: mudanca feita pelo proprio dono nao recarrega a TV.
+function removeOwnerMedia(mediaId, reload = true) {
   const m = db.prepare('SELECT filename, ownerScreenId FROM media WHERE id = ? AND ownerScreenId IS NOT NULL').get(mediaId);
   if (!m) return null;
   inTx(() => {
     db.prepare('DELETE FROM playlist_items WHERE mediaId = ?').run(mediaId);
     db.prepare('DELETE FROM media WHERE id = ?').run(mediaId);
-    db.prepare('UPDATE screens SET reloadAt = ? WHERE id = ?').run(Date.now(), m.ownerScreenId);
+    if (reload) db.prepare('UPDATE screens SET reloadAt = ? WHERE id = ?').run(Date.now(), m.ownerScreenId);
   });
   unlinkUpload(m.filename);
   return m.ownerScreenId;
@@ -493,7 +495,7 @@ app.delete('/api/owner-media/:mediaId', requireAdmin, (req, res) => {
 // Linhas da lista na ordem, com a midia (ownerScreenId nulo = midia do admin).
 function playlistRows(screenId) {
   return db.prepare(`
-    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.ownerScreenId
+    SELECT p.id AS itemId, p.mediaId, p.duration, p.startDate, p.endDate, m.ownerScreenId, m.filename, m.type, m.originalName
     FROM playlist_items p LEFT JOIN media m ON m.id = p.mediaId
     WHERE p.screenId = ? ORDER BY p.position
   `).all(screenId);
@@ -547,6 +549,94 @@ app.put('/api/playlists/:screenId', requireAdmin, (req, res) => {
   });
   if (result.status) return res.status(result.status).json({ error: result.error });
   res.json({ ok: true, version: result.version });
+});
+
+// ---------- API do dono (/minhatela): so as telas dele, sem mexer em datas ou duracao de anuncio ----------
+const OWNER_LIMIT = 6;
+const ownerUpload = multer({ storage: multer.diskStorage({ destination: UPLOAD_DIR, filename: (req, file, cb) => cb(null, id() + '.upload') }), limits: { fileSize: 10 * 1024 * 1024 + 1 } }); // busboy recusa ao ATINGIR o limite: +1 deixa 10 MB exatos passarem
+// Tela de outro dono (ou inexistente) responde 404, sem revelar que existe.
+const ownScreen = (req, res, next) => {
+  req.screen = db.prepare('SELECT id, code, name, location FROM screens WHERE id = ? AND ownerId = ?').get(req.params.id, req.user.id);
+  if (!req.screen) return res.status(404).json({ error: 'tela nao encontrada' });
+  next();
+};
+const ownerGuard = [requireOwner, ownScreen];
+function ownerState(screenId) {
+  const rows = playlistRows(screenId);
+  const items = rows.map(r => r.ownerScreenId === screenId
+    ? { itemId: r.itemId, kind: 'own', url: '/uploads/' + r.filename, duration: r.duration, originalName: r.originalName }
+    : { itemId: r.itemId, kind: 'ad', url: '/uploads/' + r.filename, type: r.type });
+  return { version: listVersion(rows), limit: OWNER_LIMIT, used: items.filter(i => i.kind === 'own').length, items };
+}
+// Item da tela que o dono pode mexer: 404 se nao e desta tela, 403 se e anuncio.
+function ownItem(req, res) {
+  const it = db.prepare('SELECT p.mediaId, m.ownerScreenId FROM playlist_items p LEFT JOIN media m ON m.id = p.mediaId WHERE p.id = ? AND p.screenId = ?')
+    .get(Number(req.params.itemId), req.screen.id);
+  if (!it) { res.status(404).json({ error: 'item nao encontrado' }); return null; }
+  if (it.ownerScreenId !== req.screen.id) { res.status(403).json({ error: 'anuncio nao pode ser alterado' }); return null; }
+  return it;
+}
+app.get('/api/my/screens', requireOwner, (req, res) => {
+  res.json(db.prepare('SELECT id, code, name, location FROM screens WHERE ownerId = ? ORDER BY createdAt').all(req.user.id));
+});
+app.get('/api/my/screens/:id', ownerGuard, (req, res) => res.json(ownerState(req.screen.id)));
+app.post('/api/my/screens/:id/images', ownerGuard, (req, res, next) => {
+  ownerUpload.single('file')(req, res, err => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'A imagem pode ter no máximo 10 MB.' });
+    res.status(400).json({ error: 'Envio inválido.' });
+  });
+}, (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Envie uma imagem.' });
+  const tmp = req.file.path;
+  const head = Buffer.alloc(12);
+  const fd = fs.openSync(tmp, 'r');
+  const n = fs.readSync(fd, head, 0, 12, 0);
+  fs.closeSync(fd);
+  const ext = imageType(head.subarray(0, n));
+  if (!ext) { fs.unlinkSync(tmp); return res.status(415).json({ error: 'Envie uma imagem JPEG, PNG ou WebP.' }); }
+  const filename = id() + '.' + ext;
+  fs.renameSync(tmp, path.join(UPLOAD_DIR, filename));
+  // Sem await daqui ate o COMMIT: a contagem e o INSERT nao se intercalam com outro envio.
+  const ok = inTx(() => {
+    if (ownerState(req.screen.id).used >= OWNER_LIMIT) return false;
+    const mediaId = id();
+    db.prepare("INSERT INTO media (id, filename, originalName, type, ownerScreenId, createdAt) VALUES (?, ?, ?, 'image', ?, ?)")
+      .run(mediaId, filename, req.file.originalname, req.screen.id, Date.now());
+    db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, position) VALUES (?, ?, 7, (SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_items WHERE screenId = ?))')
+      .run(req.screen.id, mediaId, req.screen.id);
+    return true;
+  });
+  if (!ok) { unlinkUpload(filename); return res.status(409).json({ error: 'Limite de ' + OWNER_LIMIT + ' imagens atingido.' }); }
+  res.json(ownerState(req.screen.id));
+});
+app.patch('/api/my/screens/:id/items/:itemId', ownerGuard, (req, res) => {
+  if (!ownItem(req, res)) return;
+  const d = req.body && req.body.duration;
+  if (!Number.isInteger(d) || d < 3 || d > 7) return res.status(400).json({ error: 'duracao deve ser um inteiro de 3 a 7 segundos' });
+  db.prepare('UPDATE playlist_items SET duration = ? WHERE id = ?').run(d, Number(req.params.itemId));
+  res.json(ownerState(req.screen.id));
+});
+app.delete('/api/my/screens/:id/items/:itemId', ownerGuard, (req, res) => {
+  const it = ownItem(req, res);
+  if (!it) return;
+  removeOwnerMedia(it.mediaId, false);
+  res.json(ownerState(req.screen.id));
+});
+app.put('/api/my/screens/:id/order', ownerGuard, (req, res) => {
+  const { version, itemIds } = req.body || {};
+  if (!Array.isArray(itemIds)) return res.status(400).json({ error: 'itemIds obrigatorio' });
+  const result = inTx(() => {
+    const state = ownerState(req.screen.id);
+    if (version !== state.version) return { status: 409, error: 'lista desatualizada' };
+    const current = state.items.map(i => i.itemId);
+    if (itemIds.length !== current.length || new Set(itemIds).size !== itemIds.length || !itemIds.every(i => current.includes(i))) return { status: 400, error: 'itemIds deve ser uma permutacao da lista' };
+    const set = db.prepare('UPDATE playlist_items SET position = ? WHERE id = ?');
+    itemIds.forEach((itemId, ix) => set.run(ix, itemId));
+    return { state: ownerState(req.screen.id) };
+  });
+  if (result.status) return res.status(result.status).json({ error: result.error });
+  res.json(result.state);
 });
 
 // ---------- Feed que o PLAYER consome (ja filtrado por datas de campanha) ----------

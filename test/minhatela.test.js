@@ -78,9 +78,9 @@ function newClient() {
   const jar = new Map();
   const ip = '10.0.0.' + (++ipSeq);
   return {
-    async req(url, { method = 'GET', body } = {}) {
+    async req(url, { method = 'GET', body, form } = {}) {
       const res = await realFetch(BASE + url, {
-        method, redirect: 'manual', body: body && JSON.stringify(body),
+        method, redirect: 'manual', body: form ?? (body && JSON.stringify(body)),
         headers: { 'x-forwarded-for': ip, cookie: [...jar].map(([k, v]) => k + '=' + v).join('; '), ...(body && { 'content-type': 'application/json' }) },
       });
       for (const c of res.headers.getSetCookie()) { const [kv] = c.split(';'); const i = kv.indexOf('='); jar.set(kv.slice(0, i), kv.slice(i + 1)); }
@@ -324,4 +324,170 @@ test('impressao de midia de dono ou inexistente nao grava', async () => {
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM impressions').get().n, 0);
   await c.json('/api/impression', { method: 'POST', body: { screenId: screen.id, mediaId: a } });
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM impressions').get().n, 1);
+});
+
+// ---------- API do dono ----------
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(20)]);
+let ownerSeq = 0;
+// Dono logado com uma tela dele; addAd poe um anuncio (com datas e duracao proprias) na lista.
+async function ownerSetup() {
+  const email = 'dono' + (++ownerSeq) + '@x.com';
+  addUser(email, 'owner');
+  const sid = 'os' + ownerSeq;
+  db.prepare('INSERT INTO screens (id, code, name, createdAt, ownerId) VALUES (?, ?, ?, ?, ?)').run(sid, 900 + ownerSeq, 'Tela ' + sid, Date.now(), email);
+  const { c } = await loginAs(email);
+  const base = '/api/my/screens/' + sid;
+  const upload = (buf = PNG, { name = 'a.png', type = 'image/png' } = {}) => {
+    const form = new FormData();
+    form.append('file', new Blob([buf], { type }), name);
+    return c.json(base + '/images', { method: 'POST', form });
+  };
+  const addAd = (n) => {
+    const mid = 'ownad' + ownerSeq + n;
+    db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)').run(mid, mid + '.png', mid + '.png', 'image', 'Marca', Date.now());
+    db.prepare("INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, 15, '2020-01-01', '2099-12-31', (SELECT COALESCE(MAX(position)+1,0) FROM playlist_items WHERE screenId = ?))").run(sid, mid, sid);
+    return mid;
+  };
+  return { c, sid, base, upload, addAd, state: () => c.json(base) };
+}
+const uploads = () => fs.readdirSync(process.env.UPLOAD_DIR).length;
+const dbItems = (sid) => db.prepare('SELECT mediaId, duration, startDate, endDate, position FROM playlist_items WHERE screenId = ? ORDER BY position').all(sid);
+
+test('estado do anuncio nao expoe anunciante, datas nem duracao', async () => {
+  const { addAd, state } = await ownerSetup();
+  addAd(1);
+  const s = await state();
+  assert.strictEqual(s.limit, 6);
+  assert.strictEqual(s.used, 0);
+  assert.deepStrictEqual(Object.keys(s.items[0]).sort(), ['itemId', 'kind', 'type', 'url']);
+  assert.strictEqual(s.items[0].kind, 'ad');
+});
+
+test('envio entra no fim com duracao 7, extensao vem do conteudo e aparece em /api/play e /api/gallery', async () => {
+  const { c, sid, upload, addAd } = await ownerSetup();
+  addAd(1);
+  const r = await upload(PNG, { name: 'foto.jpg', type: 'image/jpeg' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.used, 1);
+  const own = r.items[1];
+  assert.deepStrictEqual([own.kind, own.duration, own.originalName], ['own', 7, 'foto.jpg']);
+  assert.ok(own.url.endsWith('.png'));
+  assert.ok(fs.existsSync(path.join(process.env.UPLOAD_DIR, own.url.split('/').pop())));
+  const play = await c.json('/api/play/' + sid);
+  assert.strictEqual(play.items.find((i) => i.url === own.url).duration, 7);
+  const code = db.prepare('SELECT code FROM screens WHERE id = ?').get(sid).code;
+  assert.ok((await c.json('/api/gallery/' + code)).items.some((i) => i.url === own.url));
+  assert.strictEqual(db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(sid).reloadAt, null);
+});
+
+test('7a imagem recebe 409 e duas juntas com 5 na lista: uma entra, outra 409', async () => {
+  const { sid, upload, state } = await ownerSetup();
+  for (let i = 0; i < 5; i++) assert.strictEqual((await upload()).status, 200);
+  const both = await Promise.all([upload(), upload()]);
+  assert.deepStrictEqual(both.map((r) => r.status).sort(), [200, 409]);
+  assert.strictEqual((await upload()).status, 409);
+  assert.strictEqual((await state()).used, 6);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM media WHERE ownerScreenId = ?').get(sid).n, 6);
+  assert.strictEqual(fs.readdirSync(process.env.UPLOAD_DIR).filter((f) => f.endsWith('.upload')).length, 0);
+});
+
+test('duracao: 2, 8 e 3.5 dao 400; 3 e 7 passam', async () => {
+  const { c, base, upload } = await ownerSetup();
+  const itemId = (await upload()).items[0].itemId;
+  for (const duration of [2, 8, 3.5, '5', null]) assert.strictEqual((await c.json(base + '/items/' + itemId, { method: 'PATCH', body: { duration } })).status, 400);
+  for (const duration of [3, 7]) {
+    const r = await c.json(base + '/items/' + itemId, { method: 'PATCH', body: { duration } });
+    assert.deepStrictEqual([r.status, r.items[0].duration], [200, duration]);
+  }
+});
+
+test('PATCH e DELETE em anuncio dao 403 e o anuncio fica intacto', async () => {
+  const { c, sid, base, addAd, state } = await ownerSetup();
+  addAd(1);
+  const itemId = (await state()).items[0].itemId;
+  const before = dbItems(sid);
+  assert.strictEqual((await c.json(base + '/items/' + itemId, { method: 'PATCH', body: { duration: 5 } })).status, 403);
+  assert.strictEqual((await c.json(base + '/items/' + itemId, { method: 'DELETE' })).status, 403);
+  assert.deepStrictEqual(dbItems(sid), before);
+});
+
+test('tela de outro dono: 404 nas cinco rotas com :id e item de outra tela tambem', async () => {
+  const mine = await ownerSetup();
+  const other = await ownerSetup();
+  const itemId = (await other.upload()).items[0].itemId;
+  const v = (await other.state()).version;
+  const f = (p, o) => mine.c.json('/api/my/screens/' + other.sid + p, o);
+  const form = new FormData();
+  form.append('file', new Blob([PNG], { type: 'image/png' }), 'a.png');
+  const before = uploads();
+  assert.strictEqual((await f('')).status, 404);
+  assert.strictEqual((await f('/images', { method: 'POST', form })).status, 404);
+  assert.strictEqual((await f('/items/' + itemId, { method: 'PATCH', body: { duration: 5 } })).status, 404);
+  assert.strictEqual((await f('/items/' + itemId, { method: 'DELETE' })).status, 404);
+  assert.strictEqual((await f('/order', { method: 'PUT', body: { version: v, itemIds: [itemId] } })).status, 404);
+  assert.strictEqual(uploads(), before);
+  // item da outra tela pela minha rota
+  assert.strictEqual((await mine.c.json(mine.base + '/items/' + itemId, { method: 'DELETE' })).status, 404);
+  assert.strictEqual((await other.state()).used, 1);
+});
+
+test('GET /api/my/screens lista so as do dono; Google sem codigo 401, admin 403', async () => {
+  const o = await ownerSetup();
+  const list = await (await o.c.req('/api/my/screens')).json();
+  assert.deepStrictEqual(list.map((s) => s.id), [o.sid]);
+  assert.deepStrictEqual(Object.keys(list[0]).sort(), ['code', 'id', 'location', 'name']);
+  const { c } = await googleStep('dono' + ownerSeq + '@x.com');
+  assert.strictEqual((await c.json('/api/my/screens')).status, 401);
+  assert.strictEqual((await (await admin()).json('/api/my/screens')).status, 403);
+});
+
+test('reordenar muda so position; permutacao invalida da 400 e versao velha 409', async () => {
+  const { c, sid, base, upload, addAd, state } = await ownerSetup();
+  const a = addAd(1);
+  await upload();
+  const s = await state();
+  const [i0, i1] = s.items.map((i) => i.itemId);
+  for (const itemIds of [[i0], [i0, i0], [i0, 9999], [i0, i1, i1], 'x']) {
+    assert.strictEqual((await c.json(base + '/order', { method: 'PUT', body: { version: s.version, itemIds } })).status, 400);
+  }
+  assert.strictEqual((await c.json(base + '/order', { method: 'PUT', body: { version: 'velha', itemIds: [i1, i0] } })).status, 409);
+  const r = await c.json(base + '/order', { method: 'PUT', body: { version: s.version, itemIds: [i1, i0] } });
+  assert.deepStrictEqual([r.status, r.items.map((i) => i.itemId)], [200, [i1, i0]]);
+  assert.notStrictEqual(r.version, s.version);
+  assert.deepStrictEqual({ ...dbItems(sid).find((x) => x.mediaId === a) }, { mediaId: a, duration: 15, startDate: '2020-01-01', endDate: '2099-12-31', position: 1 });
+  assert.strictEqual((await c.json(base + '/order', { method: 'PUT', body: { version: s.version, itemIds: [i0, i1] } })).status, 409);
+});
+
+test('HTML, SVG, HEIC e arquivo vazio com mimetype image/png: 415 e nenhum arquivo', async () => {
+  const { upload } = await ownerSetup();
+  const before = uploads();
+  const heic = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypheic'), Buffer.alloc(16)]);
+  for (const buf of [Buffer.from('<html><script>1</script></html>'), Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), heic, Buffer.alloc(0)]) {
+    const r = await upload(buf);
+    assert.strictEqual(r.status, 415);
+    assert.strictEqual(r.error, 'Envie uma imagem JPEG, PNG ou WebP.');
+  }
+  assert.strictEqual(uploads(), before);
+});
+
+test('10 MB + 1 byte: 413 e nenhum arquivo; 10 MB exatos passam', async () => {
+  const { upload } = await ownerSetup();
+  const before = uploads();
+  const big = Buffer.concat([PNG, Buffer.alloc(10 * 1024 * 1024 + 1 - PNG.length)]);
+  const r = await upload(big);
+  assert.strictEqual(r.status, 413);
+  assert.strictEqual(r.error, 'A imagem pode ter no máximo 10 MB.');
+  assert.strictEqual(uploads(), before);
+  assert.strictEqual((await upload(big.subarray(0, 10 * 1024 * 1024))).status, 200);
+});
+
+test('excluir apaga item, registro e arquivo sem acionar reloadAt', async () => {
+  const { c, sid, base, upload } = await ownerSetup();
+  const own = (await upload()).items[0];
+  const file = path.join(process.env.UPLOAD_DIR, own.url.split('/').pop());
+  const r = await c.json(base + '/items/' + own.itemId, { method: 'DELETE' });
+  assert.deepStrictEqual([r.status, r.used, r.items], [200, 0, []]);
+  assert.ok(!fs.existsSync(file));
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM media WHERE ownerScreenId = ?').get(sid).n, 0);
+  assert.strictEqual(db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(sid).reloadAt, null);
 });
