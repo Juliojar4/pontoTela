@@ -9,3 +9,5 @@ frontend/.angular/
 public/admin/
 public/player/
 .env
+.angular/
+.claude/worktrees/
