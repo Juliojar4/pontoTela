@@ -642,3 +642,127 @@ test('DELETE /api/screens apaga o dono que ficou sem telas e preserva o que aind
   assert.strictEqual((await c.json('/api/screens/duo2', { method: 'DELETE' })).status, 200);
   assert.strictEqual(db.prepare('SELECT 1 FROM users WHERE id = ?').get('duo@x.com'), undefined);
 });
+
+// ---------- Moldura informativa ----------
+const { validateFrame, clearFrameCache } = require('../lib/frame');
+const { defaultFrame } = require('../public/tv/frame.js');
+
+// Respostas simuladas das APIs externas; falham quando apis.fail = true.
+const apis = { fail: false, calls: [] };
+const framedFetch = globalThis.fetch;
+globalThis.fetch = (url, opts) => {
+  const u = String(url);
+  const fake = (body) => { apis.calls.push(u); return apis.fail ? Promise.reject(new Error('fora do ar')) : Promise.resolve(new Response(JSON.stringify(body))); };
+  if (u.startsWith('https://api.open-meteo.com')) return fake({ current: { temperature_2m: 24.4, weather_code: 2 } });
+  if (u.startsWith('https://economia.awesomeapi')) return fake({ USDBRL: { bid: '5.4965', pctChange: '-0.13' } });
+  if (u.startsWith('https://brapi.dev')) return fake({ results: [{ symbol: 'PETR4', regularMarketPrice: 45.14, regularMarketChangePercent: -1.76 }] });
+  if (u.startsWith('https://geocoding-api')) return fake({ results: [{ name: 'Campinas', admin1: 'São Paulo', latitude: -22.9, longitude: -47.06 }] });
+  return framedFetch(url, opts);
+};
+
+const validFrame = (over = {}) => ({ ...defaultFrame(), enabled: true, ...over });
+
+test('moldura: valida modelo, cores, zonas, capacidade e blocos', () => {
+  assert.ok(validateFrame(validFrame()).frame);
+  assert.ok(validateFrame(validFrame({ enabled: 'sim' })).error);
+  assert.ok(validateFrame(validFrame({ layout: '__proto__' })).error);
+  assert.ok(validateFrame(validFrame({ bg: 'red' })).error);
+  assert.ok(validateFrame(validFrame({ text: '#12345g' })).error);
+  assert.ok(validateFrame(validFrame({ zones: { outra: [] } })).error);
+  assert.ok(validateFrame(validFrame({ zones: { bar: [{ type: 'script' }] } })).error);
+  assert.ok(validateFrame(validFrame({ zones: { bar: [{ type: 'clock' }, { type: 'clock' }] } })).error);
+  assert.ok(validateFrame(validFrame({ layout: 'coluna', zones: { corner: [{ type: 'clock' }, { type: 'logo' }] } })).error);
+  assert.ok(validateFrame(validFrame({ zones: { bar: [{ type: 'stocks', symbols: ['XXXX3'] }] } })).error);
+  assert.ok(validateFrame(validFrame({ zones: { bar: [{ type: 'weather', city: { name: 'x', lat: 200, lon: 0 } }] } })).error);
+});
+
+test('moldura: descarta campos desconhecidos', () => {
+  const { frame } = validateFrame(validFrame({ logoUrl: 'http://evil', extra: 1, zones: { bar: [{ type: 'clock', html: '<b>' }] } }));
+  assert.deepStrictEqual(frame.zones, { bar: [{ type: 'clock' }] });
+  assert.ok(!('logoUrl' in frame) && !('extra' in frame));
+});
+
+test('moldura: trocar de modelo nunca perde bloco', () => {
+  const { reflow, allBlocks, LAYOUTS } = require('../public/tv/frame.js');
+  const blocks = allBlocks(defaultFrame());
+  assert.strictEqual(blocks.length, 5);
+  for (const id of Object.keys(LAYOUTS)) {
+    const frame = { enabled: true, layout: id, bg: '#000000', text: '#ffffff', zones: reflow(blocks, id) };
+    assert.strictEqual(allBlocks(frame).length, 5);
+    assert.ok(validateFrame(frame).frame, id);
+  }
+});
+
+test('moldura: dono salva, TV recebe so nas imagens dele e sem moldura desligada', async () => {
+  clearFrameCache();
+  const o = await ownerSetup();
+  const c = o.c, url = o.base + '/frame';
+  assert.strictEqual((await c.json(url)).enabled, false);
+  const own = await o.upload();
+  assert.strictEqual(own.status, 200);
+  const sid = o.base.split('/').pop();
+  assert.strictEqual((await c.json('/api/play/' + sid)).frame, null);
+
+  const frame = validFrame({ zones: { bar: [{ type: 'clock' }, { type: 'dollar' }, { type: 'weather', city: { name: 'Campinas', lat: -22.9, lon: -47.06 } }, { type: 'stocks', symbols: ['PETR4'] }] } });
+  assert.strictEqual((await c.json(url, { method: 'PUT', body: { ...frame, bg: 'red' } })).status, 400);
+  assert.strictEqual((await c.json(url, { method: 'PUT', body: frame })).status, 200);
+
+  const play = await c.json('/api/play/' + sid);
+  assert.strictEqual(play.frame.layout, 'rodape');
+  assert.deepStrictEqual(play.frameData, {
+    weather: { temp: 24.4, code: 2 }, dollar: { price: 5.4965, pct: -0.13 }, stocks: { PETR4: { price: 45.14, pct: -1.76 } },
+  });
+  assert.ok(play.items.every((i) => i.own === true));
+  const code = db.prepare('SELECT code FROM screens WHERE id = ?').get(sid).code;
+  assert.ok((await c.json('/api/gallery/' + code)).items.every((i) => !('own' in i)));
+
+  // Moldura sem bloco nenhum nao chega a TV.
+  await c.json(url, { method: 'PUT', body: validFrame({ zones: { bar: [] } }) });
+  assert.strictEqual((await c.json('/api/play/' + sid)).frame, null);
+});
+
+test('moldura: API fora do ar nao derruba a TV e mantem o ultimo valor', async () => {
+  clearFrameCache();
+  const o = await ownerSetup();
+  const sid = o.base.split('/').pop();
+  await o.c.json(o.base + '/frame', { method: 'PUT', body: validFrame({ zones: { bar: [{ type: 'dollar' }] } }) });
+  apis.fail = true;
+  try {
+    const off = await o.c.json('/api/play/' + sid);
+    assert.strictEqual(off.status, 200);
+    assert.deepStrictEqual(off.frameData, {});
+  } finally { apis.fail = false; }
+  clearFrameCache();
+  assert.ok((await o.c.json('/api/play/' + sid)).frameData.dollar);
+  apis.calls.length = 0;
+  await o.c.json('/api/play/' + sid);
+  assert.strictEqual(apis.calls.length, 0); // dentro do cache, nao chama de novo
+});
+
+test('moldura: so o dono da tela mexe, e a logo so aceita imagem', async () => {
+  const a = await ownerSetup();
+  const b = await ownerSetup();
+  assert.strictEqual((await b.c.json(a.base + '/frame')).status, 404);
+  assert.strictEqual((await b.c.json(a.base + '/frame', { method: 'PUT', body: validFrame() })).status, 404);
+  assert.strictEqual((await newClient().json('/api/my/cities?q=campinas')).status, 401);
+
+  const send = (buf, name) => { const form = new FormData(); form.append('file', new Blob([buf]), name); return a.c.json(a.base + '/frame/logo', { method: 'POST', form }); };
+  assert.strictEqual((await send('<svg onload=alert(1)>', 'x.svg')).status, 415);
+  const first = await send(PNG, 'logo.png');
+  assert.match(first.logoUrl, /^\/uploads\/[0-9a-f]+\.png$/);
+  const file = path.join(process.env.UPLOAD_DIR, path.basename(first.logoUrl));
+  assert.ok(fs.existsSync(file));
+  const second = await send(PNG, 'logo2.png');
+  assert.notStrictEqual(second.logoUrl, first.logoUrl);
+  assert.ok(!fs.existsSync(file)); // a antiga sai do disco
+  assert.strictEqual((await a.c.json(a.base + '/frame/logo', { method: 'DELETE' })).logoUrl, null);
+  assert.ok(!fs.existsSync(path.join(process.env.UPLOAD_DIR, path.basename(second.logoUrl))));
+});
+
+test('moldura: busca de cidade devolve nome, estado e coordenadas', async () => {
+  const o = await ownerSetup();
+  const r = await o.c.req('/api/my/cities?q=campinas');
+  assert.deepStrictEqual(await r.json(), [{ name: 'Campinas', region: 'São Paulo', lat: -22.9, lon: -47.06 }]);
+  const none = await o.c.req('/api/my/cities?q=a');
+  assert.deepStrictEqual(await none.json(), []);
+});

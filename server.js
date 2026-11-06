@@ -10,6 +10,8 @@ const { DatabaseSync } = require('node:sqlite');
 const QRCode = require('qrcode');
 const { generateSecret, verifyTotp, otpauthUri, encryptSecret, decryptSecret } = require('./lib/totp');
 const google = require('./lib/google');
+const { validateFrame, frameData, needsOf, searchCities } = require('./lib/frame');
+const { defaultFrame, allBlocks } = require('./public/tv/frame.js');
 
 // Sem estas variaveis o login nao funciona (e a senha antiga nao existe mais): nao sobe.
 const REQUIRED_ENV = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'ADMIN_EMAIL', 'TOTP_ENCRYPTION_KEY'];
@@ -111,6 +113,9 @@ db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_screens_code ON screens(code)');
 // Dono da tela (users.id) e posse das imagens do dono (media.ownerScreenId; vazio = midia do admin).
 if (!db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'ownerId'").get()) db.exec('ALTER TABLE screens ADD COLUMN ownerId TEXT');
 if (!db.prepare("SELECT 1 FROM pragma_table_info('media') WHERE name = 'ownerScreenId'").get()) db.exec('ALTER TABLE media ADD COLUMN ownerScreenId TEXT');
+// Moldura informativa da tela: frame = JSON validado por lib/frame.js; frameLogo = arquivo em uploads/.
+if (!db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'frame'").get()) db.exec('ALTER TABLE screens ADD COLUMN frame TEXT');
+if (!db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'frameLogo'").get()) db.exec('ALTER TABLE screens ADD COLUMN frameLogo TEXT');
 
 // Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
 // Se algo der errado no meio do caminho, desfaz e apaga o .sqlite pra tentar de novo do zero
@@ -487,7 +492,7 @@ app.post('/api/screens', requireAdmin, (req, res) => {
 });
 app.delete('/api/screens/:id', requireAdmin, (req, res) => {
   const owned = db.prepare('SELECT filename FROM media WHERE ownerScreenId = ?').all(req.params.id);
-  const screen = db.prepare('SELECT ownerId FROM screens WHERE id = ?').get(req.params.id);
+  const screen = db.prepare('SELECT ownerId, frameLogo FROM screens WHERE id = ?').get(req.params.id);
   inTx(() => {
     db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.id);
     db.prepare('DELETE FROM media WHERE ownerScreenId = ?').run(req.params.id);
@@ -495,6 +500,7 @@ app.delete('/api/screens/:id', requireAdmin, (req, res) => {
     dropOwnerIfOrphan(screen?.ownerId);
   });
   owned.forEach(m => unlinkUpload(m.filename));
+  if (screen?.frameLogo) unlinkUpload(screen.frameLogo);
   res.json({ ok: true });
 });
 // Marca a tela pra recarregar; o player pega isso no proximo heartbeat (ate ~25s).
@@ -633,23 +639,29 @@ app.get('/api/my/screens', requireOwner, (req, res) => {
   res.json(db.prepare('SELECT id, code, name, location FROM screens WHERE ownerId = ? ORDER BY createdAt').all(req.user.id));
 });
 app.get('/api/my/screens/:id', ownerGuard, (req, res) => res.json(ownerState(req.screen.id)));
-app.post('/api/my/screens/:id/images', ownerGuard, (req, res, next) => {
+const ownerFile = (req, res, next) => {
   ownerUpload.single('file')(req, res, err => {
     if (!err) return next();
     if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'A imagem pode ter no máximo 10 MB.' });
     res.status(400).json({ error: 'Envio inválido.' });
   });
-}, (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Envie uma imagem.' });
-  const tmp = req.file.path;
+};
+// Da ao envio o nome definitivo, com a extensao vinda do conteudo. null = nao e imagem aceita (e apaga).
+function storeImage(file) {
   const head = Buffer.alloc(12);
-  const fd = fs.openSync(tmp, 'r');
+  const fd = fs.openSync(file.path, 'r');
   const n = fs.readSync(fd, head, 0, 12, 0);
   fs.closeSync(fd);
   const ext = imageType(head.subarray(0, n));
-  if (!ext) { fs.unlinkSync(tmp); return res.status(415).json({ error: 'Envie uma imagem JPEG, PNG ou WebP.' }); }
+  if (!ext) { fs.unlinkSync(file.path); return null; }
   const filename = id() + '.' + ext;
-  fs.renameSync(tmp, path.join(UPLOAD_DIR, filename));
+  fs.renameSync(file.path, path.join(UPLOAD_DIR, filename));
+  return filename;
+}
+app.post('/api/my/screens/:id/images', ownerGuard, ownerFile, (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Envie uma imagem.' });
+  const filename = storeImage(req.file);
+  if (!filename) return res.status(415).json({ error: 'Envie uma imagem JPEG, PNG ou WebP.' });
   // Sem await daqui ate o COMMIT: a contagem e o INSERT nao se intercalam com outro envio.
   // O dono pode ter perdido a tela enquanto o multer gravava: confere de novo dentro da transacao.
   let ok;
@@ -698,13 +710,64 @@ app.put('/api/my/screens/:id/order', ownerGuard, (req, res) => {
   res.json(result.state);
 });
 
+// ---------- Moldura informativa (dono monta na /minhatela; o player desenha nas imagens do dono) ----------
+function frameRow(screenId) {
+  const row = db.prepare('SELECT frame, frameLogo FROM screens WHERE id = ?').get(screenId);
+  const frame = row?.frame ? JSON.parse(row.frame) : defaultFrame();
+  return { ...frame, logoUrl: row?.frameLogo ? '/uploads/' + row.frameLogo : null };
+}
+app.get('/api/my/screens/:id/frame', ownerGuard, (req, res) => res.json(frameRow(req.screen.id)));
+app.put('/api/my/screens/:id/frame', ownerGuard, (req, res) => {
+  const { frame, error } = validateFrame(req.body);
+  if (error) return res.status(400).json({ error });
+  db.prepare('UPDATE screens SET frame = ? WHERE id = ?').run(JSON.stringify(frame), req.screen.id);
+  res.json(frameRow(req.screen.id));
+});
+app.post('/api/my/screens/:id/frame/logo', ownerGuard, ownerFile, (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Envie uma imagem.' });
+  const filename = storeImage(req.file);
+  if (!filename) return res.status(415).json({ error: 'Envie uma imagem JPEG, PNG ou WebP.' });
+  const old = db.prepare('SELECT frameLogo FROM screens WHERE id = ?').get(req.screen.id);
+  db.prepare('UPDATE screens SET frameLogo = ? WHERE id = ?').run(filename, req.screen.id);
+  if (old?.frameLogo) unlinkUpload(old.frameLogo);
+  res.json(frameRow(req.screen.id));
+});
+app.delete('/api/my/screens/:id/frame/logo', ownerGuard, (req, res) => {
+  const old = db.prepare('SELECT frameLogo FROM screens WHERE id = ?').get(req.screen.id);
+  db.prepare('UPDATE screens SET frameLogo = NULL WHERE id = ?').run(req.screen.id);
+  if (old?.frameLogo) unlinkUpload(old.frameLogo);
+  res.json(frameRow(req.screen.id));
+});
+app.get('/api/my/cities', requireOwner, safe(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  if (q.length < 2) return res.json([]);
+  try {
+    res.json(await searchCities(q));
+  } catch (e) {
+    console.error('moldura: busca de cidade', e.message);
+    res.status(502).json({ error: 'A busca de cidades não respondeu. Tente de novo.' });
+  }
+}));
+// Dados para a previa: dolar e acoes sempre, clima se vier a cidade que o dono acabou de escolher.
+app.get('/api/my/frame-data', requireOwner, safe(async (req, res) => {
+  const lat = Number(req.query.lat), lon = Number(req.query.lon);
+  const city = req.query.lat && req.query.lon && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : undefined;
+  res.json(await frameData({ weather: city, dollar: true, stocks: true }));
+}));
+// O que a TV recebe. Sem bloco nenhum, ou desligada, a moldura nao existe para o player.
+async function playFrame(screenId) {
+  const frame = frameRow(screenId);
+  if (!frame.enabled || !allBlocks(frame).length) return { frame: null, frameData: null };
+  return { frame, frameData: await frameData(needsOf(frame)) };
+}
+
 // ---------- Feed que o PLAYER consome (ja filtrado por datas de campanha) ----------
 // Midias da tela que estao no ar HOJE (respeita as datas de campanha). Usada pelo player
 // e pela galeria publica do QR, pra regra de campanha viver num lugar so.
 function activeItems(screenId) {
   const today = new Date().toISOString().slice(0, 10);
   const rows = db.prepare(`
-    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.advertiser
+    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.advertiser, m.ownerScreenId
     FROM playlist_items p JOIN media m ON m.id = p.mediaId
     WHERE p.screenId = ?
     ORDER BY p.position
@@ -713,14 +776,15 @@ function activeItems(screenId) {
     if (r.startDate && today < r.startDate) return false;
     if (r.endDate && today > r.endDate) return false;
     return true;
-  }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser }));
+  }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser, own: !!r.ownerScreenId }));
 }
 
-app.get('/api/play/:screenId', (req, res) => {
+// own: imagem do dono. So ela recebe moldura; anuncio vendido segue em tela cheia.
+app.get('/api/play/:screenId', safe(async (req, res) => {
   const screenId = resolveScreenId(req.params.screenId);
   if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
-  res.json({ screenId, items: activeItems(screenId) });
-});
+  res.json({ screenId, items: activeItems(screenId), ...(await playFrame(screenId)) });
+}));
 
 // Feed da GALERIA publica (o que o QR da tela abre). Mesmo conteudo do player, sem duracao
 // mandando no ritmo: quem escaneia avanca e volta na mao.
@@ -728,7 +792,7 @@ app.get('/api/gallery/:code', (req, res) => {
   const screenId = resolveScreenId(req.params.code);
   if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
   const row = db.prepare('SELECT code, name, location FROM screens WHERE id = ?').get(screenId);
-  res.json({ code: row.code, name: row.name, location: row.location, items: activeItems(screenId) });
+  res.json({ code: row.code, name: row.name, location: row.location, items: activeItems(screenId).map(({ own, ...item }) => item) });
 });
 
 // ---------- Heartbeat (o player avisa que esta vivo, pra tela aparecer online no painel) ----------

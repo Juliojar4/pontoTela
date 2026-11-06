@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Source+Sans+3:wght@400;600&display=swap">
   <link rel="stylesheet" href="/minhatela/assets/minhatela.css">
+  <link rel="stylesheet" href="/tv/frame.css">
 </head>
 <body class="app">
   <header>
@@ -30,6 +31,10 @@
     <p id="aviso" role="status" hidden></p>
     <p id="erro" class="erro" role="alert" hidden></p>
     <p id="vazio" hidden>Nenhuma tela vinculada. Fale com o administrador.</p>
+    <div class="abas" id="abas" role="tablist" hidden>
+      <button type="button" id="aba-imagens" role="tab" aria-selected="true" aria-controls="painel">Imagens</button>
+      <button type="button" id="aba-moldura" role="tab" aria-selected="false" aria-controls="moldura">Moldura</button>
+    </div>
     <section id="painel" hidden>
       <ul id="itens"></ul>
       <p class="semnada" id="semnada" hidden>Sua tela ainda não tem imagens. Adicione a primeira.</p>
@@ -40,7 +45,42 @@
       <input id="arquivo" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Escolher imagem" hidden>
       <p class="nota">As mudanças chegam à TV em até 5 minutos.</p>
     </section>
+    <section id="moldura" hidden>
+      <p class="erro" id="m-erro" role="alert" hidden></p>
+      <p class="m-ok" id="m-ok" role="status" hidden></p>
+      <div id="m-editor" hidden>
+      <div class="m-previa" id="m-previa" aria-label="Prévia da moldura na TV" role="img"></div>
+      <label class="m-liga"><input type="checkbox" id="m-liga"> Usar moldura nas minhas imagens</label>
+      <p class="m-dica">Os anúncios continuam em tela cheia, sem moldura.</p>
+
+      <h2>Modelo</h2>
+      <div class="m-modelos" id="m-modelos" role="radiogroup" aria-label="Modelo da moldura"></div>
+
+      <h2>Cores</h2>
+      <div class="m-cores">
+        <label>Fundo <input type="color" id="m-fundo"></label>
+        <label>Texto <input type="color" id="m-texto"></label>
+      </div>
+      <p class="m-contraste" id="m-contraste" role="status" hidden>Essas cores têm pouco contraste. O texto pode ficar difícil de ler de longe.</p>
+
+      <h2>Blocos</h2>
+      <p class="m-dica">Arraste para trocar de lugar ou de área.</p>
+      <div id="m-zonas"></div>
+
+      <button class="btn m-salvar" id="m-salvar" type="button" disabled>Salvar moldura</button>
+      <p class="nota">Depois de salvar, a moldura chega à TV em até 5 minutos.</p>
+      <input id="m-logo" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Escolher logo" hidden>
+
+      <dialog class="m-inserir" id="m-inserir" aria-labelledby="m-inserir-titulo">
+        <h2 id="m-inserir-titulo">Adicionar bloco</h2>
+        <div id="m-inserir-lista"></div>
+        <button class="m-link" id="m-inserir-fechar" type="button">Cancelar</button>
+      </dialog>
+      </div>
+    </section>
   </main>
+  <script src="/tv/frame.js"></script>
+  <script src="/minhatela/assets/moldura.js"></script>
   <script src="/minhatela/assets/minhatela.js"></script>
 </body>
 </html>

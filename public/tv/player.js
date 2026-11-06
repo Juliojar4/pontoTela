@@ -22,6 +22,8 @@
   var debug = location.search.indexOf('debug=1') !== -1;
 
   var items = [];
+  var frame = null;       // moldura da tela (null = sem moldura)
+  var frameData = null;   // clima, dolar e acoes que vieram junto com a programacao
   var idx = 0;
   var seq = 0;
   var advanceTimer = null;
@@ -86,7 +88,17 @@
   function cacheKey() { return 'playlist_' + screenKey; }
 
   function saveCache(list) {
-    try { localStorage.setItem(cacheKey(), JSON.stringify(list)); } catch (e) { /* sem storage */ }
+    try {
+      localStorage.setItem(cacheKey(), JSON.stringify(list));
+      localStorage.setItem('frame_' + screenKey, JSON.stringify({ frame: frame, frameData: frameData }));
+    } catch (e) { /* sem storage */ }
+  }
+
+  function loadFrameCache() {
+    try {
+      var saved = JSON.parse(localStorage.getItem('frame_' + screenKey));
+      if (saved) { frame = saved.frame; frameData = saved.frameData; }
+    } catch (e) { /* sem storage */ }
   }
 
   function loadCache() {
@@ -104,6 +116,8 @@
       // corpo invalido nao mexem em nada e a TV segue repetindo a ultima lista valida.
       if (data && Object.prototype.toString.call(data.items) === '[object Array]') {
         items = data.items;
+        frame = data.frame || null;
+        frameData = data.frameData || null;
         saveCache(items);
         diag('programacao: ' + items.length + ' itens');
       }
@@ -112,6 +126,7 @@
       var cached = loadCache();
       if (cached && cached.length && !items.length) {
         items = cached;
+        loadFrameCache();
         diag('offline: usando programacao salva (' + items.length + ' itens)');
       } else {
         diag('falha ao buscar programacao (HTTP ' + status + ')', !items.length);
@@ -144,8 +159,9 @@
       media = document.createElement('img');
     }
     media.src = item.url;
-    layer.appendChild(media);
-    return { node: layer, media: media };
+    // A camada precisa estar na pagina para a moldura medir o tamanho: playNext chama mountFrame.
+    if (!(frame && item.own && window.PontoFrame)) layer.appendChild(media);
+    return { node: layer, media: media, framed: !media.parentNode };
   }
 
   function dropOtherLayers(keep) {
@@ -173,6 +189,7 @@
 
     var layer = buildLayer(item);
     stage.appendChild(layer.node);
+    if (layer.framed) window.PontoFrame.mount(layer.node, frame, frameData, layer.media);
     // proximo tick: dispara o fade-in (precisa de um reflow entre inserir e trocar a classe)
     setTimeout(function () { layer.node.className = 'layer active'; }, 30);
     // terminada a transicao, descarta as camadas antigas que ficaram por baixo
@@ -215,6 +232,18 @@
     } else {
       advanceTimer = setTimeout(playNext, (Number(item.duration) || 10) * 1000);
     }
+  }
+
+  // ---------- moldura: relogio, troca de acao e tamanho da tela ----------
+  function refitFrames() {
+    var roots = stage.querySelectorAll('.pf-root');
+    for (var i = 0; i < roots.length; i++) {
+      window.PontoFrame.fit(roots[i], stage.offsetWidth, stage.offsetHeight);
+    }
+  }
+  if (window.PontoFrame) {
+    setInterval(function () { window.PontoFrame.updateAll(stage, frameData); }, 1000);
+    window.addEventListener('resize', refitFrames, false);
   }
 
   // ---------- heartbeat ----------

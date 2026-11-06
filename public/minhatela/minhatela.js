@@ -25,6 +25,7 @@
 
   function load() {
     var g = gen;
+    window.dispatchEvent(new CustomEvent('minhatela:tela', { detail: { id: screenId } }));
     return api('GET', base()).then(function (r) {
       if (g !== gen) return;
       if (r.status === 200) render(r.body);
