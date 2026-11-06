@@ -19,6 +19,18 @@ export class ScreensService {
     return firstValueFrom(this.http.delete<void>('/api/screens/' + id));
   }
 
+  setOwner(id: string, email: string): Promise<void> {
+    return firstValueFrom(this.http.put<void>('/api/screens/' + id + '/owner', { email }));
+  }
+
+  resetOwner2fa(userId: string): Promise<void> {
+    return firstValueFrom(this.http.post<void>('/api/users/' + userId + '/reset-2fa', {}));
+  }
+
+  removeOwner(userId: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>('/api/users/' + userId));
+  }
+
   reload(id: string): Promise<void> {
     return firstValueFrom(this.http.post<void>('/api/screens/' + id + '/reload', {}));
   }

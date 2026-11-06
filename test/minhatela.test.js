@@ -491,3 +491,93 @@ test('excluir apaga item, registro e arquivo sem acionar reloadAt', async () => 
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM media WHERE ownerScreenId = ?').get(sid).n, 0);
   assert.strictEqual(db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(sid).reloadAt, null);
 });
+
+// ---------- Painel admin: donos ----------
+const putOwner = (c, sid, email) => c.json('/api/screens/' + sid + '/owner', { method: 'PUT', body: { email } });
+const screenRow = (c, sid) => c.req('/api/screens').then((r) => r.json()).then((r) => r.find((x) => x.id === sid));
+const adminScreen = async () => { const { c, screen, addOwnerMedia } = await setup(); return { c, sid: screen.id, addOwnerMedia }; };
+
+test('dono so entra depois de vinculado pelo admin; GET /api/screens mostra dono e 2FA', async () => {
+  const { c, sid } = await adminScreen();
+  assert.strictEqual((await googleStep('Novo.Dono@X.com')).location, '/entrar?erro=nao-cadastrado');
+  assert.strictEqual((await putOwner(c, sid, ' Novo.Dono@X.com ')).status, 200);
+  const row = await screenRow(c, sid);
+  assert.deepStrictEqual([row.ownerEmail, row.ownerTotpEnabled], ['novo.dono@x.com', false]);
+  const { done } = await loginAs('novo.dono@x.com');
+  assert.strictEqual(done.redirect, '/minhatela');
+  assert.strictEqual((await screenRow(c, sid)).ownerTotpEnabled, true);
+  assert.strictEqual((await putOwner(c, sid, 'novo.dono@x.com')).status, 200); // mesmo dono: nada muda
+  assert.strictEqual(db.prepare("SELECT COUNT(*) AS n FROM users WHERE email = 'novo.dono@x.com'").get().n, 1);
+});
+
+test('e-mail invalido ou de admin da 400 e nao grava', async () => {
+  const { c, sid } = await adminScreen();
+  for (const email of ['', 'sem-arroba', 'a@b', 'a b@x.com', 'padmin@x.com', 'admin@x.com', undefined]) {
+    assert.strictEqual((await putOwner(c, sid, email)).status, 400, String(email));
+  }
+  assert.strictEqual((await screenRow(c, sid)).ownerId, null);
+});
+
+test('trocar o dono mantem imagens, derruba o dono antigo e ele nao entra mais', async () => {
+  const { c, sid, addOwnerMedia } = await adminScreen();
+  await putOwner(c, sid, 'antigo@x.com');
+  const old = (await loginAs('antigo@x.com')).c;
+  assert.strictEqual((await old.json('/api/my/screens')).status, 200);
+  const om = addOwnerMedia(sid, 'troca');
+  assert.strictEqual((await putOwner(c, sid, 'novo2@x.com')).status, 200);
+  assert.strictEqual((await old.json('/api/my/screens')).status, 401);
+  assert.strictEqual((await googleStep('antigo@x.com')).location, '/entrar?erro=nao-cadastrado');
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM media WHERE id = ?').get(om.id).n, 1);
+  assert.strictEqual((await screenRow(c, sid)).ownerEmail, 'novo2@x.com');
+});
+
+test('dono antigo com outra tela continua com a conta', async () => {
+  const a = await adminScreen(), b = await adminScreen();
+  await putOwner(a.c, a.sid, 'dois@x.com');
+  await putOwner(a.c, b.sid, 'dois@x.com');
+  await putOwner(a.c, a.sid, 'outro@x.com');
+  assert.strictEqual(db.prepare("SELECT COUNT(*) AS n FROM users WHERE email = 'dois@x.com'").get().n, 1);
+});
+
+test('zerar 2FA leva a enroll e encerra a sessao aberta', async () => {
+  const { c, sid } = await adminScreen();
+  await putOwner(c, sid, 'zera@x.com');
+  const o = (await loginAs('zera@x.com')).c;
+  const uid = (await screenRow(c, sid)).ownerId;
+  assert.strictEqual((await c.json('/api/users/' + uid + '/reset-2fa', { method: 'POST' })).status, 200);
+  assert.strictEqual((await o.json('/api/my/screens')).status, 401);
+  assert.strictEqual((await screenRow(c, sid)).ownerTotpEnabled, false);
+  assert.strictEqual((await (await googleStep('zera@x.com')).c.json('/api/auth/state')).step, 'enroll');
+  assert.strictEqual((await c.json('/api/users/nao-existe/reset-2fa', { method: 'POST' })).status, 404);
+});
+
+test('remover conta desvincula a tela, mantem imagens e derruba a sessao', async () => {
+  const { c, sid, addOwnerMedia } = await adminScreen();
+  await putOwner(c, sid, 'sai@x.com');
+  const o = (await loginAs('sai@x.com')).c;
+  const om = addOwnerMedia(sid, 'sai');
+  const uid = (await screenRow(c, sid)).ownerId;
+  assert.strictEqual((await c.json('/api/users/' + uid, { method: 'DELETE' })).status, 200);
+  assert.strictEqual((await o.json('/api/my/screens')).status, 401);
+  const row = await screenRow(c, sid);
+  assert.deepStrictEqual([row.ownerId, row.ownerEmail, row.ownerTotpEnabled], [null, null, false]);
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM media WHERE id = ?').get(om.id).n, 1);
+  assert.strictEqual((await c.json('/api/users/' + uid, { method: 'DELETE' })).status, 404);
+});
+
+test('DELETE de admin da 400 e a conta fica', async () => {
+  const { c } = await adminScreen();
+  const id = db.prepare("SELECT id FROM users WHERE email = 'padmin@x.com'").get().id;
+  assert.strictEqual((await c.json('/api/users/' + id, { method: 'DELETE' })).status, 400);
+  assert.strictEqual((await c.json('/api/users/' + id + '/reset-2fa', { method: 'POST' })).status, 400);
+  assert.strictEqual((await c.json('/api/screens')).status, 200);
+});
+
+test('dono recebe 403 nas tres rotas de gestao', async () => {
+  const { c, sid } = await adminScreen();
+  await putOwner(c, sid, 'curioso@x.com');
+  const o = (await loginAs('curioso@x.com')).c;
+  assert.strictEqual((await o.json('/api/screens/' + sid + '/owner', { method: 'PUT', body: { email: 'x@x.com' } })).status, 403);
+  assert.strictEqual((await o.json('/api/users/x/reset-2fa', { method: 'POST' })).status, 403);
+  assert.strictEqual((await o.json('/api/users/x', { method: 'DELETE' })).status, 403);
+});

@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import QRCode from 'qrcode';
 import { Screen } from '../../core/models';
@@ -61,6 +62,23 @@ const REFRESH_MS = 20 * 1000;
                   <button class="ghost" (click)="downloadQr(s)">baixar PNG</button>
                 </div>
               </div>
+            </div>
+
+            <div class="owner">
+              <label [attr.for]="'owner-' + s.id">E-mail do dono</label>
+              <div class="owner-row">
+                <input [id]="'owner-' + s.id" type="email" placeholder="dono@exemplo.com"
+                  [ngModel]="ownerDraft()[s.id] ?? s.ownerEmail ?? ''" (ngModelChange)="setDraft(s.id, $event)" />
+                <button class="ghost" (click)="saveOwner(s)">salvar</button>
+              </div>
+              @if (s.ownerId) {
+                <div class="owner-row">
+                  <span class="muted">2FA: {{ s.ownerTotpEnabled ? 'ativo' : 'não cadastrado' }}</span>
+                  <span class="spacer"></span>
+                  <button class="ghost" [disabled]="!s.ownerTotpEnabled" (click)="resetOwner2fa(s)">zerar 2FA</button>
+                  <button class="del" (click)="removeOwner(s)">remover conta</button>
+                </div>
+              }
             </div>
 
             <div class="actions">
@@ -136,6 +154,11 @@ const REFRESH_MS = 20 * 1000;
     .qr-info p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
     .qr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
+    .owner { display: flex; flex-direction: column; gap: 6px; }
+    .owner label { margin: 0; }
+    .owner-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .owner-row input { flex: 1; min-width: 0; }
+    .owner-row .spacer { flex: 1; }
     .actions { margin-top: auto; padding-top: 4px; }
     .actions .spacer { flex: 1; }
     a.as-btn { text-decoration: none; display: inline-flex; align-items: center; }
@@ -148,6 +171,7 @@ export class ScreensComponent implements OnInit, OnDestroy {
   readonly copiedGallery = signal<Set<string>>(new Set());
   // dataURL do QR por tela — gerado no navegador, sem depender de serviço externo.
   readonly qr = signal<Record<string, string>>({});
+  readonly ownerDraft = signal<Record<string, string>>({});
   name = '';
   location = '';
   private refreshTimer?: ReturnType<typeof setInterval>;
@@ -248,6 +272,40 @@ export class ScreensComponent implements OnInit, OnDestroy {
     this.location = '';
     this.ui.toast('Tela adicionada.', 'success');
     await this.refresh();
+  }
+
+  setDraft(id: string, email: string): void {
+    this.ownerDraft.update((d) => ({ ...d, [id]: email }));
+  }
+
+  // Erros do servidor (e-mail inválido, e-mail de admin) viram toast.
+  private async ownerCall(action: () => Promise<void>, done: string): Promise<void> {
+    try {
+      await action();
+    } catch (e) {
+      this.ui.toast((e as HttpErrorResponse).error?.error ?? 'Não consegui concluir.', 'error');
+      return;
+    }
+    this.ui.toast(done, 'success');
+    this.ownerDraft.set({});
+    await this.refresh();
+  }
+
+  async saveOwner(s: Screen): Promise<void> {
+    const email = (this.ownerDraft()[s.id] ?? s.ownerEmail ?? '').trim();
+    if (email === (s.ownerEmail ?? '')) return;
+    if (s.ownerEmail && !(await this.ui.confirm(`Trocar o dono? ${s.ownerEmail} perde o acesso a esta tela.`))) return;
+    await this.ownerCall(() => this.screensService.setOwner(s.id, email), 'Dono vinculado.');
+  }
+
+  async resetOwner2fa(s: Screen): Promise<void> {
+    if (!(await this.ui.confirm(`Zerar o 2FA de ${s.ownerEmail}? A sessão aberta cai e ele cadastra o Authenticator de novo.`))) return;
+    await this.ownerCall(() => this.screensService.resetOwner2fa(s.ownerId!), '2FA zerado.');
+  }
+
+  async removeOwner(s: Screen): Promise<void> {
+    if (!(await this.ui.confirm(`Remover a conta de ${s.ownerEmail}? As imagens dele ficam na tela.`))) return;
+    await this.ownerCall(() => this.screensService.removeOwner(s.ownerId!), 'Conta removida.');
   }
 
   async remove(id: string): Promise<void> {

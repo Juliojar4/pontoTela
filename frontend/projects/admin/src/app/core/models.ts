@@ -6,6 +6,9 @@ export interface Screen {
   createdAt: number;
   lastSeen: number | null;
   reloadAt: number | null;
+  ownerId: string | null;
+  ownerEmail: string | null;
+  ownerTotpEnabled: boolean;
 }
 
 export interface Media {
@@ -22,6 +25,7 @@ export interface PlaylistItem {
   duration: number;
   startDate: string | null;
   endDate: string | null;
+  ownerMedia?: Media | null;
 }
 
 export interface Report {

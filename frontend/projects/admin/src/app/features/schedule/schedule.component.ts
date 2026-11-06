@@ -1,4 +1,5 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { Media, PlaylistItem, Screen } from '../../core/models';
 import { ScreensService } from '../../core/screens.service';
@@ -102,7 +103,9 @@ import { MediaPickerComponent } from '../../shared/media-picker.component';
                   <div class="actions">
                     <button class="ghost" (click)="move($index, -1)" [disabled]="$index === 0" aria-label="Subir">↑</button>
                     <button class="ghost" (click)="move($index, 1)" [disabled]="$index === list().length - 1" aria-label="Descer">↓</button>
-                    <button class="ghost" (click)="startEdit($index, item)">editar</button>
+                    @if (!item.ownerMedia) {
+                      <button class="ghost" (click)="startEdit($index, item)">editar</button>
+                    }
                     <button class="del" (click)="removeItem($index)">remover</button>
                   </div>
                 }
@@ -180,6 +183,7 @@ export class ScheduleComponent implements OnInit {
   editDuration = 10;
   editStartDate = '';
   editEndDate = '';
+  private version = '';
 
   constructor(
     private screensService: ScreensService,
@@ -199,10 +203,11 @@ export class ScheduleComponent implements OnInit {
   }
 
   mediaFor(id: string): Media | undefined {
-    return this.media().find((m) => m.id === id);
+    return this.media().find((m) => m.id === id) ?? this.list().find((i) => i.mediaId === id)?.ownerMedia ?? undefined;
   }
 
   titleFor(item: PlaylistItem): string {
+    if (item.ownerMedia) return 'Imagem do dono · ' + item.ownerMedia.originalName;
     const m = this.mediaFor(item.mediaId);
     return m?.advertiser || m?.originalName || 'Mídia removida';
   }
@@ -217,7 +222,23 @@ export class ScheduleComponent implements OnInit {
   }
 
   async loadList(): Promise<void> {
-    this.list.set(await this.playlistsService.list(this.screenId));
+    const { version, items } = await this.playlistsService.list(this.screenId);
+    this.version = version;
+    this.list.set(items);
+  }
+
+  // Grava com a versao lida. Se a lista mudou no meio (409), avisa e recarrega.
+  private async save(items: PlaylistItem[]): Promise<boolean> {
+    try {
+      await this.playlistsService.save(this.screenId, this.version, items);
+      return true;
+    } catch (e) {
+      if ((e as HttpErrorResponse).status !== 409) throw e;
+      this.editingIndex.set(null);
+      this.ui.toast('A lista mudou. Recarreguei a programação.', 'error');
+      await this.loadList();
+      return false;
+    }
   }
 
   loopSeconds(): number {
@@ -266,7 +287,7 @@ export class ScheduleComponent implements OnInit {
       startDate: this.editStartDate || null,
       endDate: this.editEndDate || null,
     };
-    await this.playlistsService.save(this.screenId, l);
+    if (!(await this.save(l))) return;
     this.editingIndex.set(null);
     this.ui.toast('Programação atualizada.', 'success');
     await this.loadList();
@@ -277,14 +298,21 @@ export class ScheduleComponent implements OnInit {
     const j = ix + dir;
     if (j < 0 || j >= l.length) return;
     [l[ix], l[j]] = [l[j], l[ix]];
-    await this.playlistsService.save(this.screenId, l);
+    if (!(await this.save(l))) return;
     await this.loadList();
   }
 
   async removeItem(ix: number): Promise<void> {
     const l = [...this.list()];
+    const own = l[ix].ownerMedia;
+    if (own) {
+      if (!(await this.ui.confirm('Remover esta imagem do dono? O arquivo é apagado.'))) return;
+      await this.playlistsService.removeOwnerMedia(own.id);
+      await this.loadList();
+      return;
+    }
     l.splice(ix, 1);
-    await this.playlistsService.save(this.screenId, l);
+    if (!(await this.save(l))) return;
     await this.loadList();
   }
 }

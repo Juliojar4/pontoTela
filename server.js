@@ -429,7 +429,51 @@ const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 
 // ---------- Telas ----------
 app.get('/api/screens', requireAdmin, (req, res) => {
-  res.json(db.prepare('SELECT * FROM screens ORDER BY createdAt').all());
+  res.json(db.prepare(`
+    SELECT s.*, u.email AS ownerEmail, COALESCE(u.totpEnabledAt IS NOT NULL, 0) AS ownerTotpEnabled
+    FROM screens s LEFT JOIN users u ON u.id = s.ownerId ORDER BY s.createdAt
+  `).all().map(r => ({ ...r, ownerTotpEnabled: !!r.ownerTotpEnabled })));
+});
+// Vincula a tela a um dono (cria a conta se preciso). O dono anterior perde a conta se ficar sem telas.
+app.put('/api/screens/:id/owner', requireAdmin, (req, res) => {
+  const email = String((req.body || {}).email ?? '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'e-mail invalido' });
+  const screen = db.prepare('SELECT ownerId FROM screens WHERE id = ?').get(req.params.id);
+  if (!screen) return res.status(404).json({ error: 'tela nao encontrada' });
+  const result = inTx(() => {
+    let owner = db.prepare('SELECT id, role FROM users WHERE email = ?').get(email);
+    if (owner && owner.role !== 'owner') return { status: 400, error: 'e-mail de administrador' };
+    if (!owner) {
+      owner = { id: id() };
+      db.prepare("INSERT INTO users (id, email, role, createdAt) VALUES (?, ?, 'owner', ?)").run(owner.id, email, Date.now());
+    }
+    db.prepare('UPDATE screens SET ownerId = ? WHERE id = ?').run(owner.id, req.params.id);
+    const prev = screen.ownerId;
+    if (prev && prev !== owner.id && !db.prepare('SELECT 1 FROM screens WHERE ownerId = ?').get(prev)) {
+      db.prepare("DELETE FROM users WHERE id = ? AND role = 'owner'").run(prev);
+    }
+    return { status: 200 };
+  });
+  res.status(result.status).json(result.error ? { error: result.error } : { ok: true });
+});
+// Contas de dono: so role = owner. Admin nao mexe em admin por aqui.
+const ownerAccount = (req, res, next) => {
+  const u = db.prepare('SELECT id, role FROM users WHERE id = ?').get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'conta nao encontrada' });
+  if (u.role !== 'owner') return res.status(400).json({ error: 'so conta de dono' });
+  next();
+};
+app.post('/api/users/:id/reset-2fa', requireAdmin, ownerAccount, (req, res) => {
+  db.prepare('UPDATE users SET totpSecret = NULL, totpEnabledAt = NULL, totpLastStep = NULL, authEpoch = authEpoch + 1 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+// As imagens ficam: pertencem a tela, nao a conta.
+app.delete('/api/users/:id', requireAdmin, ownerAccount, (req, res) => {
+  inTx(() => {
+    db.prepare('UPDATE screens SET ownerId = NULL WHERE ownerId = ?').run(req.params.id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  });
+  res.json({ ok: true });
 });
 app.post('/api/screens', requireAdmin, (req, res) => {
   const s = { id: id(), code: nextScreenCode(), name: req.body.name || 'Tela', location: req.body.location || '', createdAt: Date.now() };

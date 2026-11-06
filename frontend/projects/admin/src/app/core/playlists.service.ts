@@ -7,15 +7,19 @@ import { PlaylistItem } from './models';
 export class PlaylistsService {
   constructor(private http: HttpClient) {}
 
-  list(screenId: string): Promise<PlaylistItem[]> {
-    return firstValueFrom(this.http.get<PlaylistItem[]>('/api/playlists/' + screenId));
+  list(screenId: string): Promise<{ version: string; items: PlaylistItem[] }> {
+    return firstValueFrom(this.http.get<{ version: string; items: PlaylistItem[] }>('/api/playlists/' + screenId));
   }
 
   add(screenId: string, item: PlaylistItem): Promise<void> {
     return firstValueFrom(this.http.post<void>('/api/playlists/' + screenId, item));
   }
 
-  save(screenId: string, items: PlaylistItem[]): Promise<void> {
-    return firstValueFrom(this.http.put<void>('/api/playlists/' + screenId, { items }));
+  save(screenId: string, version: string, items: PlaylistItem[]): Promise<void> {
+    return firstValueFrom(this.http.put<void>('/api/playlists/' + screenId, { version, items }));
+  }
+
+  removeOwnerMedia(mediaId: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>('/api/owner-media/' + mediaId));
   }
 }
