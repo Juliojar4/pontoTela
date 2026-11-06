@@ -107,6 +107,9 @@ if (!hasCode) {
   db.prepare('SELECT id FROM screens ORDER BY createdAt').all().forEach((s, ix) => setCode.run(ix + 1, s.id));
 }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_screens_code ON screens(code)');
+// Dono da tela (users.id) e posse das imagens do dono (media.ownerScreenId; vazio = midia do admin).
+if (!db.prepare("SELECT 1 FROM pragma_table_info('screens') WHERE name = 'ownerId'").get()) db.exec('ALTER TABLE screens ADD COLUMN ownerId TEXT');
+if (!db.prepare("SELECT 1 FROM pragma_table_info('media') WHERE name = 'ownerScreenId'").get()) db.exec('ALTER TABLE media ADD COLUMN ownerScreenId TEXT');
 
 // Primeira vez rodando com SQLite: importa o data.json antigo, se existir.
 // Se algo der errado no meio do caminho, desfaz e apaga o .sqlite pra tentar de novo do zero
@@ -142,6 +145,12 @@ if (dbIsNew && fs.existsSync(LEGACY_DATA_FILE)) {
   }
 }
 
+const unlinkUpload = (filename) => { try { fs.unlinkSync(path.join(UPLOAD_DIR, filename)); } catch {} };
+// Varias escritas juntas: tudo ou nada (node:sqlite nao tem helper de transacao).
+function inTx(fn) {
+  db.exec('BEGIN IMMEDIATE');
+  try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; }
+}
 const id = () => crypto.randomBytes(6).toString('hex');
 // O admin nasce (ou e promovido) a partir de ADMIN_EMAIL a cada subida.
 db.prepare("INSERT INTO users (id, email, role, createdAt) VALUES (?, ?, 'admin', ?) ON CONFLICT(email) DO UPDATE SET role = 'admin'")
@@ -425,8 +434,13 @@ app.post('/api/screens', requireAdmin, (req, res) => {
   res.json(s);
 });
 app.delete('/api/screens/:id', requireAdmin, (req, res) => {
-  db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.id);
-  db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
+  const owned = db.prepare('SELECT filename FROM media WHERE ownerScreenId = ?').all(req.params.id);
+  inTx(() => {
+    db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.id);
+    db.prepare('DELETE FROM media WHERE ownerScreenId = ?').run(req.params.id);
+    db.prepare('DELETE FROM screens WHERE id = ?').run(req.params.id);
+  });
+  owned.forEach(m => unlinkUpload(m.filename));
   res.json({ ok: true });
 });
 // Marca a tela pra recarregar; o player pega isso no proximo heartbeat (ate ~25s).
@@ -437,7 +451,7 @@ app.post('/api/screens/:id/reload', requireAdmin, (req, res) => {
 
 // ---------- Midias ----------
 app.get('/api/media', requireAdmin, (req, res) => {
-  res.json(db.prepare('SELECT * FROM media ORDER BY createdAt').all());
+  res.json(db.prepare('SELECT * FROM media WHERE ownerScreenId IS NULL ORDER BY createdAt').all());
 });
 app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'arquivo obrigatorio' });
@@ -452,31 +466,87 @@ app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
 });
 app.delete('/api/media/:id', requireAdmin, (req, res) => {
   const m = db.prepare('SELECT * FROM media WHERE id = ?').get(req.params.id);
-  if (m) { try { fs.unlinkSync(path.join(UPLOAD_DIR, m.filename)); } catch {} }
+  if (m?.ownerScreenId) return res.status(400).json({ error: 'imagem do dono: use /api/owner-media' });
+  if (m) unlinkUpload(m.filename);
   db.prepare('DELETE FROM playlist_items WHERE mediaId = ?').run(req.params.id);
   db.prepare('DELETE FROM media WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
+// Remove imagem do dono: item da lista, registro e arquivo. Devolve a tela, ou null se nao for imagem de dono.
+function removeOwnerMedia(mediaId) {
+  const m = db.prepare('SELECT filename, ownerScreenId FROM media WHERE id = ? AND ownerScreenId IS NOT NULL').get(mediaId);
+  if (!m) return null;
+  inTx(() => {
+    db.prepare('DELETE FROM playlist_items WHERE mediaId = ?').run(mediaId);
+    db.prepare('DELETE FROM media WHERE id = ?').run(mediaId);
+    db.prepare('UPDATE screens SET reloadAt = ? WHERE id = ?').run(Date.now(), m.ownerScreenId);
+  });
+  unlinkUpload(m.filename);
+  return m.ownerScreenId;
+}
+app.delete('/api/owner-media/:mediaId', requireAdmin, (req, res) => {
+  if (!removeOwnerMedia(req.params.mediaId)) return res.status(404).json({ error: 'imagem nao encontrada' });
+  res.json({ ok: true });
+});
 
 // ---------- Programacao (playlist por tela) ----------
+// Linhas da lista na ordem, com a midia (ownerScreenId nulo = midia do admin).
+function playlistRows(screenId) {
+  return db.prepare(`
+    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.ownerScreenId
+    FROM playlist_items p LEFT JOIN media m ON m.id = p.mediaId
+    WHERE p.screenId = ? ORDER BY p.position
+  `).all(screenId);
+}
+// Versao da lista: quem grava precisa ter lido a mesma, senao 409 (nada se perde em edicao simultanea).
+function listVersion(rows) {
+  const core = rows.map(r => ({ mediaId: r.mediaId, duration: r.duration, startDate: r.startDate, endDate: r.endDate }));
+  return crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex');
+}
 app.get('/api/playlists/:screenId', requireAdmin, (req, res) => {
-  const items = db.prepare('SELECT mediaId, duration, startDate, endDate FROM playlist_items WHERE screenId = ? ORDER BY position').all(req.params.screenId);
-  res.json(items);
+  const rows = playlistRows(req.params.screenId);
+  const media = db.prepare('SELECT * FROM media WHERE id = ?');
+  const items = rows.map(r => ({
+    mediaId: r.mediaId, duration: r.duration, startDate: r.startDate, endDate: r.endDate,
+    ownerMedia: r.ownerScreenId ? media.get(r.mediaId) : null
+  }));
+  res.json({ version: listVersion(rows), items });
 });
 app.post('/api/playlists/:screenId', requireAdmin, (req, res) => {
   const { mediaId, duration, startDate, endDate } = req.body;
+  const m = db.prepare('SELECT ownerScreenId FROM media WHERE id = ?').get(mediaId);
+  if (m?.ownerScreenId && m.ownerScreenId !== req.params.screenId) return res.status(400).json({ error: 'imagem de dono de outra tela' });
   const { next } = db.prepare('SELECT COALESCE(MAX(position) + 1, 0) AS next FROM playlist_items WHERE screenId = ?').get(req.params.screenId);
   db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)')
     .run(req.params.screenId, mediaId, Number(duration) || 10, startDate || null, endDate || null, next);
   res.json({ ok: true });
 });
 app.put('/api/playlists/:screenId', requireAdmin, (req, res) => {
-  db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(req.params.screenId);
-  const insert = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
-  (req.body.items || []).forEach((item, ix) => {
-    insert.run(req.params.screenId, item.mediaId, Number(item.duration) || 10, item.startDate || null, item.endDate || null, ix);
+  const screenId = req.params.screenId;
+  const { version, items } = req.body || {};
+  if (!Array.isArray(items)) return res.status(400).json({ error: 'items obrigatorio' });
+  // Leitura, conferencia e gravacao na mesma transacao: nada entra entre a versao e o DELETE.
+  const result = inTx(() => {
+    const current = playlistRows(screenId);
+    if (version !== listVersion(current)) return { status: 409, error: 'lista desatualizada' };
+    const ownerRows = new Map(current.filter(r => r.ownerScreenId === screenId).map(r => [r.mediaId, r]));
+    const kept = new Set();
+    const media = db.prepare('SELECT ownerScreenId FROM media WHERE id = ?');
+    const rows = [];
+    for (const item of items) {
+      const owner = ownerRows.get(item?.mediaId);
+      if (owner) { kept.add(item.mediaId); rows.push(owner); continue; } // dono: duracao e datas nao mudam
+      if (media.get(item?.mediaId)?.ownerScreenId) return { status: 400, error: 'imagem de dono de outra tela' };
+      rows.push({ mediaId: item?.mediaId, duration: Number(item?.duration) || 10, startDate: item?.startDate || null, endDate: item?.endDate || null });
+    }
+    if (kept.size !== ownerRows.size) return { status: 400, error: 'imagens do dono nao podem sair por aqui' };
+    db.prepare('DELETE FROM playlist_items WHERE screenId = ?').run(screenId);
+    const insert = db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, startDate, endDate, position) VALUES (?, ?, ?, ?, ?, ?)');
+    rows.forEach((r, ix) => insert.run(screenId, r.mediaId, r.duration, r.startDate, r.endDate, ix));
+    return { version: listVersion(rows) };
   });
-  res.json({ ok: true });
+  if (result.status) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true, version: result.version });
 });
 
 // ---------- Feed que o PLAYER consome (ja filtrado por datas de campanha) ----------
@@ -525,7 +595,9 @@ app.post('/api/heartbeat/:screenId', (req, res) => {
 app.post('/api/impression', (req, res) => {
   const { screenId, mediaId } = req.body || {};
   const resolved = screenId ? resolveScreenId(String(screenId)) : null;
-  if (resolved && mediaId) {
+  // So midia que existe e e do admin: imagem de dono nao entra na prova do anunciante.
+  const counts = resolved && mediaId && db.prepare('SELECT 1 FROM media WHERE id = ? AND ownerScreenId IS NULL').get(String(mediaId));
+  if (counts) {
     db.prepare('INSERT INTO impressions (screenId, mediaId, ts) VALUES (?, ?, ?)').run(resolved, mediaId, Date.now());
   }
   res.json({ ok: true });
@@ -558,4 +630,4 @@ if (require.main === module) app.listen(PORT, () => {
   console.log('Painel:     http://localhost:' + PORT + '/admin/');
 });
 
-module.exports = { app, db };
+module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia };

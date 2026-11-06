@@ -224,3 +224,104 @@ test('servidor sem GOOGLE_CLIENT_ID nao sobe e cita a variavel', () => {
   assert.strictEqual(r.status, 1);
   assert.match(r.stderr, /GOOGLE_CLIENT_ID/);
 });
+
+// ---------- Protecao da programacao e impressoes ----------
+let adminP;
+const admin = async () => (adminP ??= (async () => { addUser('padmin@x.com', 'admin'); return (await loginAs('padmin@x.com')).c; })());
+async function setup() {
+  const c = await admin();
+  const screen = await c.json('/api/screens', { method: 'POST', body: { name: 'T' } });
+  const addOwnerMedia = (screenId, name) => {
+    const m = { id: 'om' + Math.random().toString(16).slice(2, 8), filename: name + '.png' };
+    fs.writeFileSync(path.join(process.env.UPLOAD_DIR, m.filename), 'x');
+    db.prepare('INSERT INTO media (id, filename, originalName, type, ownerScreenId, createdAt) VALUES (?, ?, ?, ?, ?, ?)').run(m.id, m.filename, m.filename, 'image', screenId, Date.now());
+    db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, position) VALUES (?, ?, 10, (SELECT COALESCE(MAX(position)+1,0) FROM playlist_items WHERE screenId = ?))').run(screenId, m.id, screenId);
+    return m;
+  };
+  const adMedia = db.prepare('INSERT INTO media (id, filename, originalName, type, createdAt) VALUES (?, ?, ?, ?, ?)');
+  const ad = (n) => { adMedia.run(n, n + '.png', n + '.png', 'image', Date.now()); return n; };
+  return { c, screen, addOwnerMedia, ad };
+}
+const put = (c, s, body) => c.json('/api/playlists/' + s.id, { method: 'PUT', body });
+const get = (c, s) => c.json('/api/playlists/' + s.id);
+const count = (s) => db.prepare('SELECT COUNT(*) AS n FROM playlist_items WHERE screenId = ?').get(s.id).n;
+
+test('GET da lista devolve version e ownerMedia; PUT com versao velha ou ausente da 409', async () => {
+  const { c, screen, addOwnerMedia, ad } = await setup();
+  const om = addOwnerMedia(screen.id, 'a1');
+  const a = ad('ad1');
+  const g = await get(c, screen);
+  assert.strictEqual(g.items[0].ownerMedia.id, om.id);
+  await c.json('/api/playlists/' + screen.id, { method: 'POST', body: { mediaId: a } });
+  assert.strictEqual((await get(c, screen)).items[1].ownerMedia, null);
+  assert.strictEqual((await put(c, screen, { version: g.version, items: [] })).status, 409);
+  assert.strictEqual((await put(c, screen, { items: [] })).status, 409);
+  assert.strictEqual(count(screen), 2);
+});
+
+test('PUT sem imagem do dono da lista atual da 400; trocar duracao dela mantem os valores', async () => {
+  const { c, screen, addOwnerMedia, ad } = await setup();
+  const om = addOwnerMedia(screen.id, 'a2');
+  const a = ad('ad2');
+  const g = await get(c, screen);
+  assert.strictEqual((await put(c, screen, { version: g.version, items: [{ mediaId: a }] })).status, 400);
+  assert.strictEqual(count(screen), 1);
+  const ok = await put(c, screen, { version: g.version, items: [{ mediaId: a, duration: 7 }, { mediaId: om.id, duration: 99, startDate: '2020-01-01', endDate: '2020-01-02' }] });
+  assert.strictEqual(ok.status, 200);
+  assert.notStrictEqual(ok.version, g.version);
+  const after = (await get(c, screen)).items;
+  assert.deepStrictEqual(after.map((i) => [i.mediaId, i.duration, i.startDate]), [[a, 7, null], [om.id, 10, null]]);
+});
+
+test('PUT e POST com imagem de dono de outra tela dao 400', async () => {
+  const { c, screen, addOwnerMedia } = await setup();
+  const other = (await setup()).screen;
+  const om = addOwnerMedia(other.id, 'a3');
+  const g = await get(c, screen);
+  assert.strictEqual((await put(c, screen, { version: g.version, items: [{ mediaId: om.id }] })).status, 400);
+  assert.strictEqual((await c.json('/api/playlists/' + screen.id, { method: 'POST', body: { mediaId: om.id } })).status, 400);
+  assert.strictEqual(count(screen), 0);
+});
+
+test('DELETE /api/owner-media remove item, registro e arquivo e define reloadAt', async () => {
+  const { c, screen, addOwnerMedia } = await setup();
+  const om = addOwnerMedia(screen.id, 'a4');
+  const file = path.join(process.env.UPLOAD_DIR, om.filename);
+  assert.strictEqual((await c.json('/api/owner-media/' + om.id, { method: 'DELETE' })).status, 200);
+  assert.strictEqual(count(screen), 0);
+  assert.strictEqual(db.prepare('SELECT 1 FROM media WHERE id = ?').get(om.id), undefined);
+  assert.ok(!fs.existsSync(file));
+  assert.ok(db.prepare('SELECT reloadAt FROM screens WHERE id = ?').get(screen.id).reloadAt > 0);
+  const play = await c.json('/api/play/' + screen.id);
+  assert.strictEqual(play.status, 200);
+  assert.deepStrictEqual(play.items, []);
+});
+
+test('GET /api/media esconde imagem de dono e DELETE /api/media/:id nela da 400', async () => {
+  const { c, screen, addOwnerMedia } = await setup();
+  const om = addOwnerMedia(screen.id, 'a5');
+  const list = await c.req('/api/media').then((r) => r.json());
+  assert.ok(!list.some((m) => m.id === om.id));
+  assert.strictEqual((await c.json('/api/media/' + om.id, { method: 'DELETE' })).status, 400);
+  assert.ok(db.prepare('SELECT 1 FROM media WHERE id = ?').get(om.id));
+});
+
+test('DELETE /api/screens apaga imagens de dono e arquivos, sem tocar em midia do admin', async () => {
+  const { c, screen, addOwnerMedia, ad } = await setup();
+  const om = addOwnerMedia(screen.id, 'a6');
+  const a = ad('ad6');
+  assert.strictEqual((await c.json('/api/screens/' + screen.id, { method: 'DELETE' })).status, 200);
+  assert.strictEqual(db.prepare('SELECT 1 FROM media WHERE id = ?').get(om.id), undefined);
+  assert.ok(!fs.existsSync(path.join(process.env.UPLOAD_DIR, om.filename)));
+  assert.ok(db.prepare('SELECT 1 FROM media WHERE id = ?').get(a));
+});
+
+test('impressao de midia de dono ou inexistente nao grava', async () => {
+  const { c, screen, addOwnerMedia, ad } = await setup();
+  const om = addOwnerMedia(screen.id, 'a7');
+  const a = ad('ad7');
+  for (const mediaId of [om.id, 'nao-existe']) await c.json('/api/impression', { method: 'POST', body: { screenId: screen.id, mediaId } });
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM impressions').get().n, 0);
+  await c.json('/api/impression', { method: 'POST', body: { screenId: screen.id, mediaId: a } });
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM impressions').get().n, 1);
+});
