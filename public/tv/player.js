@@ -99,9 +99,10 @@
   function fetchPlaylist(done) {
     request('GET', '/api/play/' + encodeURIComponent(screenKey), null, function (text) {
       var data = parse(text);
-      // Resposta vazia nao apaga o que ja esta tocando: melhor repetir a ultima
-      // programacao valida do que deixar o ponto no ar sem nada.
-      if (data && data.items && data.items.length) {
+      // Resposta 2xx valida, mesmo vazia, substitui a lista e o cache: lista esvaziada
+      // no painel mostra "Sem conteudo programado". Falha de rede/servidor (onFail) ou
+      // corpo invalido nao mexem em nada e a TV segue repetindo a ultima lista valida.
+      if (data && Object.prototype.toString.call(data.items) === '[object Array]') {
         items = data.items;
         saveCache(items);
         diag('programacao: ' + items.length + ' itens');
