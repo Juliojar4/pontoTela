@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const { imageType } = require('./lib/image-type');
+const { transcode } = require('./lib/video');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
@@ -522,8 +523,30 @@ app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
   };
   db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
     .run(m.id, m.filename, m.originalName, m.type, m.advertiser, m.createdAt);
+  if (type === 'video') queueTranscode(m.id, m.filename);
   res.json(m);
 });
+// Converte em segundo plano, um por vez (VPS pequeno). Ate terminar, a TV toca o original.
+// Nome novo no fim: /uploads tem cache de 1 ano, e o player pega a URL nova no proximo poll.
+// ponytail: fila em memoria; reiniciar o servidor no meio deixa aquele video no original.
+let transcodeQueue = Promise.resolve();
+function queueTranscode(mediaId, original) {
+  transcodeQueue = transcodeQueue.then(async () => {
+    const filename = id() + '.mp4';
+    const out = path.join(UPLOAD_DIR, filename);
+    try {
+      if (!await transcode(path.join(UPLOAD_DIR, original), out)) return;
+    } catch (e) {
+      unlinkUpload(filename);
+      console.error('conversao de video falhou (' + original + '), fica o original:', e.message);
+      return;
+    }
+    // Apagado durante a conversao: descarta o resultado.
+    const r = db.prepare('UPDATE media SET filename = ? WHERE id = ? AND filename = ?').run(filename, mediaId, original);
+    unlinkUpload(r.changes ? original : filename);
+  });
+  return transcodeQueue;
+}
 app.delete('/api/media/:id', requireAdmin, (req, res) => {
   const m = db.prepare('SELECT * FROM media WHERE id = ?').get(req.params.id);
   if (m?.ownerScreenId) return res.status(400).json({ error: 'imagem do dono: use /api/owner-media' });
@@ -843,4 +866,4 @@ if (require.main === module) app.listen(PORT, () => {
   console.log('Painel:     http://localhost:' + PORT + '/admin/');
 });
 
-module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia };
+module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia, queueTranscode, UPLOAD_DIR };
