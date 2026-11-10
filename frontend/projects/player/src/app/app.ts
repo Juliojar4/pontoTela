@@ -34,6 +34,7 @@ const VIDEO_END_SLACK_MS = 3000;
           @if (l.item.type === 'video') {
             <video
               [src]="l.item.url"
+              poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
               autoplay
               muted
               playsinline

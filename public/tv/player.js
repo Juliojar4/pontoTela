@@ -15,6 +15,7 @@
   var VIDEO_LOAD_TIMEOUT_MS = 20000;  // video que nem carrega: pula pro proximo
   var VIDEO_END_SLACK_MS = 3000;      // folga caso o evento 'ended' nunca chegue
   var EMPTY_RETRY_MS = 5000;
+  var TRANSPARENT_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
   var stage = document.getElementById('stage');
   var msgEl = document.getElementById('msg');
@@ -155,6 +156,8 @@
       media.autoplay = true;
       media.preload = 'auto';
       media.controls = false;
+      // Sem poster, a WebView da TV desenha o icone de video padrao ate o 1o frame.
+      media.poster = TRANSPARENT_GIF;
     } else {
       media = document.createElement('img');
     }
