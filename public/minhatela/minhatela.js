@@ -51,11 +51,11 @@
 
   function thumb(it) {
     var el;
-    if (it.kind === 'ad' && it.type === 'video') {
+    if (it.type === 'video') {
       el = document.createElement('video');
       el.src = it.url + '#t=0.1';
       el.preload = 'metadata'; el.muted = true; el.playsInline = true;
-      el.setAttribute('aria-label', 'Vídeo do anúncio');
+      el.setAttribute('aria-label', it.kind === 'own' ? it.originalName : 'Vídeo do anúncio');
     } else {
       el = document.createElement('img');
       el.src = it.url;

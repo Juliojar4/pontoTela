@@ -2,7 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const { imageType } = require('./lib/image-type');
-const { transcode } = require('./lib/video');
+const { transcode, webpToMp4 } = require('./lib/video');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
@@ -530,21 +530,28 @@ app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
 // Nome novo no fim: /uploads tem cache de 1 ano, e o player pega a URL nova no proximo poll.
 // ponytail: fila em memoria; reiniciar o servidor no meio deixa aquele video no original.
 let transcodeQueue = Promise.resolve();
-function queueTranscode(mediaId, original) {
+function queueTranscode(mediaId, original, convert = transcode) {
   transcodeQueue = transcodeQueue.then(async () => {
     const filename = id() + '.mp4';
     const out = path.join(UPLOAD_DIR, filename);
     try {
-      if (!await transcode(path.join(UPLOAD_DIR, original), out)) return;
+      if (!await convert(path.join(UPLOAD_DIR, original), out)) return;
     } catch (e) {
       unlinkUpload(filename);
-      console.error('conversao de video falhou (' + original + '), fica o original:', e.message);
+      console.error('conversao falhou (' + original + '), fica o original:', e.message);
       return;
     }
     // Apagado durante a conversao: descarta o resultado.
-    const r = db.prepare('UPDATE media SET filename = ? WHERE id = ? AND filename = ?').run(filename, mediaId, original);
+    const r = db.prepare("UPDATE media SET filename = ?, type = 'video' WHERE id = ? AND filename = ?").run(filename, mediaId, original);
     unlinkUpload(r.changes ? original : filename);
   });
+  return transcodeQueue;
+}
+// WebP animado do dono que ainda nao virou MP4: os de antes da conversao existir e os que um reinicio cortou.
+function queueOwnerWebp() {
+  for (const m of db.prepare("SELECT id, filename FROM media WHERE ownerScreenId IS NOT NULL AND type = 'image' AND filename LIKE '%.webp'").all()) {
+    queueTranscode(m.id, m.filename, webpToMp4);
+  }
   return transcodeQueue;
 }
 app.delete('/api/media/:id', requireAdmin, (req, res) => {
@@ -646,7 +653,7 @@ const ownerGuard = [requireOwner, ownScreen];
 function ownerState(screenId) {
   const rows = playlistRows(screenId);
   const items = rows.map(r => r.ownerScreenId === screenId
-    ? { itemId: r.itemId, kind: 'own', url: '/uploads/' + r.filename, duration: r.duration, originalName: r.originalName }
+    ? { itemId: r.itemId, kind: 'own', url: '/uploads/' + r.filename, type: r.type, duration: r.duration, originalName: r.originalName }
     : { itemId: r.itemId, kind: 'ad', url: '/uploads/' + r.filename, type: r.type });
   return { version: listVersion(rows), limit: OWNER_LIMIT, used: items.filter(i => i.kind === 'own').length, items };
 }
@@ -687,12 +694,12 @@ app.post('/api/my/screens/:id/images', ownerGuard, ownerFile, (req, res) => {
   if (!filename) return res.status(415).json({ error: 'Envie uma imagem JPEG, PNG ou WebP.' });
   // Sem await daqui ate o COMMIT: a contagem e o INSERT nao se intercalam com outro envio.
   // O dono pode ter perdido a tela enquanto o multer gravava: confere de novo dentro da transacao.
+  const mediaId = id();
   let ok;
   try {
     ok = inTx(() => {
       if (!db.prepare('SELECT 1 FROM screens WHERE id = ? AND ownerId = ?').get(req.screen.id, req.user.id)) return 404;
       if (ownerState(req.screen.id).used >= OWNER_LIMIT) return 409;
-      const mediaId = id();
       db.prepare("INSERT INTO media (id, filename, originalName, type, ownerScreenId, createdAt) VALUES (?, ?, ?, 'image', ?, ?)")
         .run(mediaId, filename, uploadName(req.file), req.screen.id, Date.now());
       db.prepare('INSERT INTO playlist_items (screenId, mediaId, duration, position) VALUES (?, ?, 7, (SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_items WHERE screenId = ?))')
@@ -702,6 +709,7 @@ app.post('/api/my/screens/:id/images', ownerGuard, ownerFile, (req, res) => {
   } catch (e) { unlinkUpload(filename); throw e; }
   if (ok === 404) { unlinkUpload(filename); return res.status(404).json({ error: 'tela nao encontrada' }); }
   if (ok === 409) { unlinkUpload(filename); return res.status(409).json({ error: 'Limite de ' + OWNER_LIMIT + ' imagens atingido.' }); }
+  if (filename.endsWith('.webp')) queueTranscode(mediaId, filename, webpToMp4);
   res.json(ownerState(req.screen.id));
 });
 app.patch('/api/my/screens/:id/items/:itemId', ownerGuard, (req, res) => {
@@ -862,8 +870,9 @@ app.get('/api/report', requireAdmin, (req, res) => {
 });
 
 if (require.main === module) app.listen(PORT, () => {
+  queueOwnerWebp();
   console.log('CMS no ar: http://localhost:' + PORT);
   console.log('Painel:     http://localhost:' + PORT + '/admin/');
 });
 
-module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia, queueTranscode, UPLOAD_DIR };
+module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia, queueTranscode, queueOwnerWebp, UPLOAD_DIR };

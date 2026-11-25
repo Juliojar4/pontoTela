@@ -7,6 +7,7 @@
   var logoUrl = null;
   var data = {};      // clima, dolar e acoes da previa
   var photoUrl = null;
+  var photoIsVideo = false;
   var dirty = false;
   var insertZone = null;
   var gen = 0;        // sobe a cada troca de tela: resposta de uma tela anterior e descartada
@@ -88,6 +89,7 @@
       if (g !== gen) return;
       var own = (r.body.items || []).filter(function (i) { return i.kind === 'own'; })[0];
       photoUrl = own ? own.url : null;
+      photoIsVideo = !!own && own.type === 'video';
     }).catch(function () { /* fica com a imagem que ja estava */ });
   }
 
@@ -126,7 +128,12 @@
     if (!draft || !box.offsetWidth) return;
     box.textContent = '';
     var photo = null;
-    if (photoUrl) { photo = document.createElement('img'); photo.alt = ''; photo.src = photoUrl; }
+    if (photoUrl) {
+      photo = document.createElement(photoIsVideo ? 'video' : 'img');
+      if (photoIsVideo) { photo.muted = photo.loop = photo.autoplay = photo.playsInline = true; }
+      else photo.alt = '';
+      photo.src = photoUrl;
+    }
     var shown = Object.assign({}, draft, { logoUrl: logoUrl });
     var root = F.mount(box, shown, data, photo, true);
     if (!photoUrl) root.querySelector('.pf-photo').appendChild(element('div', 'm-vazia', 'Sua imagem aparece aqui'));

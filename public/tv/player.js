@@ -170,7 +170,11 @@
   function dropOtherLayers(keep) {
     var kids = stage.childNodes;
     for (var i = kids.length - 1; i >= 0; i--) {
-      if (kids[i] !== keep) stage.removeChild(kids[i]);
+      if (kids[i] === keep) continue;
+      // Solta o decodificador de video: a TV tem poucos, e esperar o GC faz o proximo engasgar.
+      var old = kids[i].querySelector('video');
+      if (old) { old.onended = old.onerror = old.oncanplay = old.onloadedmetadata = null; old.pause(); old.removeAttribute('src'); old.load(); }
+      stage.removeChild(kids[i]);
     }
   }
 
@@ -211,7 +215,11 @@
     };
 
     if (item.type === 'video') {
-      layer.media.onended = advance;
+      // Animacao do dono (WebP convertido): repete ate dar o tempo que ele escolheu.
+      var timed = item.own ? (Number(item.duration) || 7) * 1000 : 0;
+      var started = false;
+      if (timed) layer.media.loop = true;
+      else layer.media.onended = advance;
       // Webview de kiosk costuma ignorar o atributo autoplay: so toca com play() explicito.
       var kick = function () {
         if (mySeq !== seq) return;
@@ -221,6 +229,14 @@
           if (p && p['catch']) p['catch'](function (err) { diag('play() bloqueado: ' + err, true); });
         } catch (e) {
           diag('play() falhou: ' + e, true);
+        }
+        if (timed) {
+          // canplay volta a disparar a cada repeticao: o tempo so conta da primeira.
+          if (started) return;
+          started = true;
+          clearTimeout(advanceTimer);
+          advanceTimer = setTimeout(advance, timed);
+          return;
         }
         var d = layer.media.duration;
         if (d && isFinite(d) && d > 0) {
