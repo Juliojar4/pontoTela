@@ -2,7 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const multer = require('multer');
 const { imageType } = require('./lib/image-type');
-const { transcode, webpToMp4 } = require('./lib/video');
+const { transcode, webpToMp4, ADMIN_MAX_S } = require('./lib/video');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
@@ -524,6 +524,7 @@ app.post('/api/media', requireAdmin, upload.single('file'), (req, res) => {
   db.prepare('INSERT INTO media (id, filename, originalName, type, advertiser, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
     .run(m.id, m.filename, m.originalName, m.type, m.advertiser, m.createdAt);
   if (type === 'video') queueTranscode(m.id, m.filename);
+  else if (/\.webp$/i.test(m.filename)) queueTranscode(m.id, m.filename, adminWebp);
   res.json(m);
 });
 // Converte em segundo plano, um por vez (VPS pequeno). Ate terminar, a TV toca o original.
@@ -547,10 +548,11 @@ function queueTranscode(mediaId, original, convert = transcode) {
   });
   return transcodeQueue;
 }
-// WebP animado do dono que ainda nao virou MP4: os de antes da conversao existir e os que um reinicio cortou.
-function queueOwnerWebp() {
-  for (const m of db.prepare("SELECT id, filename FROM media WHERE ownerScreenId IS NOT NULL AND type = 'image' AND filename LIKE '%.webp'").all()) {
-    queueTranscode(m.id, m.filename, webpToMp4);
+const adminWebp = (input, output) => webpToMp4(input, output, ADMIN_MAX_S);
+// WebP animado que ainda nao virou MP4: os de antes da conversao existir e os que um reinicio cortou.
+function queueWebp() {
+  for (const m of db.prepare("SELECT id, filename, ownerScreenId FROM media WHERE type = 'image' AND filename LIKE '%.webp'").all()) {
+    queueTranscode(m.id, m.filename, m.ownerScreenId ? webpToMp4 : adminWebp);
   }
   return transcodeQueue;
 }
@@ -798,7 +800,7 @@ async function playFrame(screenId) {
 function activeItems(screenId) {
   const today = new Date().toISOString().slice(0, 10);
   const rows = db.prepare(`
-    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.advertiser, m.ownerScreenId
+    SELECT p.mediaId, p.duration, p.startDate, p.endDate, m.type, m.filename, m.originalName, m.advertiser, m.ownerScreenId
     FROM playlist_items p JOIN media m ON m.id = p.mediaId
     WHERE p.screenId = ?
     ORDER BY p.position
@@ -807,7 +809,9 @@ function activeItems(screenId) {
     if (r.startDate && today < r.startDate) return false;
     if (r.endDate && today > r.endDate) return false;
     return true;
-  }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser, own: !!r.ownerScreenId }));
+  }).map(r => ({ mediaId: r.mediaId, type: r.type, url: '/uploads/' + r.filename, duration: r.duration, advertiser: r.advertiser, own: !!r.ownerScreenId,
+    // Veio de WebP: e animacao, repete pelo tempo da Programacao. Video de verdade toca uma vez ate o fim.
+    loop: r.type === 'video' && /\.webp$/i.test(r.originalName) }));
 }
 
 // own: imagem do dono. So ela recebe moldura; anuncio vendido segue em tela cheia.
@@ -823,7 +827,7 @@ app.get('/api/gallery/:code', (req, res) => {
   const screenId = resolveScreenId(req.params.code);
   if (!screenId) return res.status(404).json({ error: 'tela nao encontrada', items: [] });
   const row = db.prepare('SELECT code, name, location FROM screens WHERE id = ?').get(screenId);
-  res.json({ code: row.code, name: row.name, location: row.location, items: activeItems(screenId).map(({ own, ...item }) => item) });
+  res.json({ code: row.code, name: row.name, location: row.location, items: activeItems(screenId).map(({ own, loop, ...item }) => item) });
 });
 
 // ---------- Heartbeat (o player avisa que esta vivo, pra tela aparecer online no painel) ----------
@@ -870,9 +874,9 @@ app.get('/api/report', requireAdmin, (req, res) => {
 });
 
 if (require.main === module) app.listen(PORT, () => {
-  queueOwnerWebp();
+  queueWebp();
   console.log('CMS no ar: http://localhost:' + PORT);
   console.log('Painel:     http://localhost:' + PORT + '/admin/');
 });
 
-module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia, queueTranscode, queueOwnerWebp, UPLOAD_DIR };
+module.exports = { app, db, playlistRows, listVersion, removeOwnerMedia, queueTranscode, queueWebp, UPLOAD_DIR };

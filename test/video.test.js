@@ -12,7 +12,7 @@ Object.assign(process.env, {
 });
 const test = require('node:test');
 const assert = require('node:assert');
-const { db, queueTranscode, queueOwnerWebp, UPLOAD_DIR } = require('../server');
+const { db, queueTranscode, queueWebp, UPLOAD_DIR } = require('../server');
 const { probe } = require('../lib/video');
 
 const hasFfmpeg = (() => { try { execFileSync('ffmpeg', ['-version']); return true; } catch { return false; } })();
@@ -50,7 +50,7 @@ test('WebP animado do dono vira MP4 com a duracao certa; parado e transparente f
   await add('parado', 1, 255);
   await add('transp', 4, 100);
 
-  await queueOwnerWebp();
+  await queueWebp();
 
   const get = (id) => db.prepare('SELECT filename, type FROM media WHERE id = ?').get(id);
   const anim = get('anim');

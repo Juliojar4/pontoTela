@@ -766,3 +766,55 @@ test('moldura: busca de cidade devolve nome, estado e coordenadas', async () => 
   const none = await o.c.req('/api/my/cities?q=a');
   assert.deepStrictEqual(await none.json(), []);
 });
+
+const hasFfmpeg = !spawnSync('ffmpeg', ['-version']).error;
+test('WebP animado do admin vira MP4 sem corte de 7 s e repete pelo tempo da Programacao', { skip: !hasFfmpeg && 'sem ffmpeg' }, async () => {
+  const sharp = require('sharp');
+  const { queueTranscode, UPLOAD_DIR } = require('../server');
+  addUser('webp@x.com', 'admin');
+  const { c } = await loginAs('webp@x.com');
+  const upload = async (frames, name) => {
+    const raw = Buffer.concat(Array.from({ length: frames }, (_, i) => Buffer.alloc(64 * 64 * 3, 40 * i)));
+    const buf = await sharp(raw, { raw: { width: 64, height: 64 * frames, channels: 3, pageHeight: 64 } })
+      .webp({ lossless: true, delay: Array(frames).fill(2000), loop: 0 }).toBuffer();
+    const form = new FormData();
+    form.append('file', new Blob([buf], { type: 'image/webp' }), name);
+    const r = await c.json('/api/media', { method: 'POST', form });
+    assert.strictEqual(r.status, 200);
+    return r.id;
+  };
+  const anim = await upload(5, 'Anuncio.WEBP'); // 10 s
+  const parado = await upload(1, 'parado.webp');
+  await queueTranscode('x', 'x', async () => false); // entra no fim da fila: espera as conversoes
+
+  const get = (mid) => db.prepare('SELECT filename, type FROM media WHERE id = ?').get(mid);
+  assert.strictEqual(get(anim).type, 'video');
+  assert.strictEqual(get(parado).type, 'image');
+  const secs = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(UPLOAD_DIR, get(anim).filename)]).stdout.toString();
+  assert.strictEqual(Number(secs), 10);
+
+  // MP4 enviado como MP4 segue tocando uma vez ate o fim.
+  db.prepare("INSERT INTO media (id, filename, originalName, type, createdAt) VALUES ('mp4puro', 'p.mp4', 'p.mp4', 'video', 0)").run();
+  db.prepare("INSERT INTO screens (id, code, name, createdAt) VALUES ('swebp', 9901, 'W', 0)").run();
+  [anim, parado, 'mp4puro'].forEach((mid, i) => db.prepare("INSERT INTO playlist_items (screenId, mediaId, duration, position) VALUES ('swebp', ?, 12, ?)").run(mid, i));
+  const { items } = await c.json('/api/play/swebp');
+  assert.deepStrictEqual(items.map((i) => [i.type, i.loop, i.duration]), [['video', true, 12], ['image', false, 12], ['video', false, 12]]);
+});
+
+test('subida retoma WebP que ainda nao virou MP4: do dono e do admin', { skip: !hasFfmpeg && 'sem ffmpeg' }, async () => {
+  const sharp = require('sharp');
+  const { queueWebp, UPLOAD_DIR } = require('../server');
+  const raw = Buffer.concat([0, 1].map((i) => Buffer.alloc(64 * 64 * 3, 90 * i)));
+  for (const [mid, owner] of [['velhoadm', null], ['velhodono', 'sx']]) {
+    await sharp(raw, { raw: { width: 64, height: 128, channels: 3, pageHeight: 64 } }).webp({ lossless: true, delay: [6000, 6000], loop: 0 }).toFile(path.join(UPLOAD_DIR, mid + '.webp'));
+    db.prepare("INSERT INTO media (id, filename, originalName, type, ownerScreenId, createdAt) VALUES (?, ?, 'v.webp', 'image', ?, 0)").run(mid, mid + '.webp', owner);
+  }
+  await queueWebp();
+  const secs = (mid) => {
+    const { filename, type } = db.prepare('SELECT filename, type FROM media WHERE id = ?').get(mid);
+    assert.strictEqual(type, 'video');
+    return Number(spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path.join(UPLOAD_DIR, filename)]).stdout.toString());
+  };
+  assert.strictEqual(secs('velhoadm'), 12);
+  assert.strictEqual(secs('velhodono'), 7);
+});

@@ -215,8 +215,8 @@
     };
 
     if (item.type === 'video') {
-      // Animacao do dono (WebP convertido): repete ate dar o tempo que ele escolheu.
-      var timed = item.own ? (Number(item.duration) || 7) * 1000 : 0;
+      // WebP convertido (do dono ou anuncio): repete ate dar o tempo escolhido.
+      var timed = item.own || item.loop ? (Number(item.duration) || 7) * 1000 : 0;
       var started = false;
       if (timed) layer.media.loop = true;
       else layer.media.onended = advance;
